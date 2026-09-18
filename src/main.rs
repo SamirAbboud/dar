@@ -1,0 +1,35 @@
+use clap::{Parser, Subcommand};
+use colored::*;
+
+mod commands;
+
+#[derive(Parser)]
+#[command(
+    name = "dar",
+    version,
+    about = "Development environment tool",
+    disable_help_subcommand = true
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Install Dar environment (nginx include, folders, PHP-FPM)
+    Install,
+}
+
+fn main() {
+    let cli = Cli::parse();
+
+    let result = match cli.command {
+        Commands::Install => commands::install::run(),
+    };
+
+    if let Err(err_msg) = result {
+        eprintln!("{} {}", "❌ Error:".red().bold(), err_msg);
+        std::process::exit(1);
+    }
+}
