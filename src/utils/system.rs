@@ -1,0 +1,54 @@
+use colored::*;
+use std::fs::{self, File};
+use std::path::Path;
+use std::process::Command;
+
+pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
+    let dirs = [
+        dar_dir.to_path_buf(),
+        dar_dir.join("bin"),
+        dar_dir.join("nginx"),
+        dar_dir.join("sites"),
+        dar_dir.join("logs"),
+        dar_dir.join("src"),
+        dar_dir.join("php"),
+        dar_dir.join("php").join("versions"),
+    ];
+
+    for dir in &dirs {
+        if !dir.exists() {
+            fs::create_dir_all(dir)
+                .map_err(|e| format!("Failed to create directory {}: {}", dir.display(), e))?;
+            println!(" Created directory: {}", dir.display().to_string().dimmed());
+        }
+    }
+
+    let parked_store = dar_dir.join("parked.txt");
+    if !parked_store.exists() {
+        File::create(&parked_store)
+            .map_err(|e| format!("Failed to create parked store: {}", e))?;
+    }
+
+    Ok(())
+}
+
+pub fn get_available_compiler() -> String {
+    if let Ok(cc) = std::env::var("CC") {
+        return cc;
+    }
+
+    let candidates = ["gcc", "clang", "cc"];
+    for compiler in candidates {
+        if Command::new(compiler)
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok()
+        {
+            return compiler.to_string();
+        }
+    }
+
+    "clang".to_string()
+}

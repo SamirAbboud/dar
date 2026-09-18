@@ -3,6 +3,8 @@ use colored::*;
 
 mod commands;
 mod config;
+mod services;
+mod utils;
 
 #[derive(Parser)]
 #[command(
