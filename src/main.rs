@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use colored::*;
 
 mod commands;
+mod config;
 
 #[derive(Parser)]
 #[command(
