@@ -8,6 +8,7 @@ use crate::utils::system::setup_directories;
 use crate::services::dependencies::{
     ensure_nginx_source, ensure_openssl_source, ensure_pcre2_source, ensure_zlib_source,
 };
+use crate::services::composer::ensure_composer;
 
 pub fn run() -> Result<(), String> {
     println!("{}", "🚀 Initializing Dar environment setup...".cyan().bold());
@@ -42,6 +43,7 @@ pub fn run() -> Result<(), String> {
     }
 
     fetch_isolated_php(&dar_dir, &cfg.default_php)?;
+    ensure_composer(&dar_dir)?;
     create_default_nginx_config(&dar_dir)?;
     ensure_php_fpm_running(&dar_dir)?;
     restart_nginx(&nginx_bin, &dar_dir)?;
