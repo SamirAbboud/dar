@@ -3,8 +3,11 @@ use colored::*;
 use crate::config::load_or_create_config;
 use crate::services::nginx::{build_and_install_nginx, create_default_nginx_config, restart_nginx};
 use crate::services::php::{ensure_php_fpm_running, fetch_isolated_php};
-use crate::utils::archive::fetch_and_extract;
 use crate::utils::system::setup_directories;
+
+use crate::services::dependencies::{
+    ensure_nginx_source, ensure_openssl_source, ensure_pcre2_source, ensure_zlib_source,
+};
 
 pub fn run() -> Result<(), String> {
     println!("{}", "🚀 Initializing Dar environment setup...".cyan().bold());
@@ -23,46 +26,10 @@ pub fn run() -> Result<(), String> {
         println!("\n{}", "📦 Building isolated Nginx binary...".yellow().bold());
         let src_dir = dar_dir.join("src");
 
-        let pcre_folder = fetch_and_extract(
-            &src_dir,
-            "PCRE2",
-            &format!("pcre2-{}", cfg.pcre2),
-            &format!("pcre2-{}.tar.gz", cfg.pcre2),
-            &format!(
-                "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-{}/pcre2-{}.tar.gz",
-                cfg.pcre2, cfg.pcre2
-            ),
-        )?;
-
-        let openssl_folder = fetch_and_extract(
-            &src_dir,
-            "OpenSSL",
-            &format!("openssl-{}", cfg.openssl),
-            &format!("openssl-{}.tar.gz", cfg.openssl),
-            &format!(
-                "https://github.com/openssl/openssl/releases/download/openssl-{}/openssl-{}.tar.gz",
-                cfg.openssl, cfg.openssl
-            ),
-        )?;
-
-        let zlib_folder = fetch_and_extract(
-            &src_dir,
-            "zlib",
-            &format!("zlib-{}", cfg.zlib),
-            &format!("zlib-{}.tar.gz", cfg.zlib),
-            &format!(
-                "https://github.com/madler/zlib/releases/download/v{}/zlib-{}.tar.gz",
-                cfg.zlib, cfg.zlib
-            ),
-        )?;
-
-        let nginx_src_folder = fetch_and_extract(
-            &src_dir,
-            "Nginx",
-            &format!("nginx-{}", cfg.nginx),
-            &format!("nginx-{}.tar.gz", cfg.nginx),
-            &format!("https://nginx.org/download/nginx-{}.tar.gz", cfg.nginx),
-        )?;
+        let pcre_folder = ensure_pcre2_source(&src_dir, &cfg.pcre2)?;
+        let openssl_folder = ensure_openssl_source(&src_dir, &cfg.openssl)?;
+        let zlib_folder = ensure_zlib_source(&src_dir, &cfg.zlib)?;
+        let nginx_src_folder = ensure_nginx_source(&src_dir, &cfg.nginx)?;
 
         build_and_install_nginx(
             &nginx_src_folder,

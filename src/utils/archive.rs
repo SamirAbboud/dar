@@ -30,6 +30,14 @@ pub fn fetch_and_extract(
             attempts += 1;
             match ureq::get(download_url).call() {
                 Ok(res) => break res,
+                Err(ureq::Error::StatusCode(404)) => {
+                    return Err(
+                        format!(
+                            "404 Not Found at {}. Please check if version exists.", 
+                            download_url
+                        )
+                    );
+                }
                 Err(e) => {
                     if attempts >= max_attempts {
                         return Err(format!(
@@ -66,6 +74,14 @@ pub fn fetch_and_extract(
     archive
         .unpack(&target_folder)
         .map_err(|e| format!("Failed to extract {} archive: {}", name, e))?;
+
+    let nested_folder = target_folder.join(folder_name);
+    if nested_folder.is_dir() {
+        let temp_folder = src_dir.join(format!("{}-temp", folder_name));
+        let _ = fs::rename(&nested_folder, &temp_folder);
+        let _ = fs::remove_dir_all(&target_folder);
+        let _ = fs::rename(&temp_folder, &target_folder);
+    }
 
     Ok(target_folder)
 }
