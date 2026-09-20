@@ -178,6 +178,7 @@ pub fn create_default_php_fpm_config(dar_dir: &Path) -> Result<PathBuf, String> 
     let conf_path = php_dir.join("php-fpm.conf");
     let pid_path = dar_dir.join("logs").join("php-fpm.pid");
     let log_path = dar_dir.join("logs").join("php-fpm.log");
+    let socket_path = php_dir.join("php-fpm.sock");
 
     let conf_content = format!(
         r#"[global]
@@ -185,7 +186,7 @@ pid = {}
 error_log = {}
 
 [www]
-listen = 127.0.0.1:9000
+listen = {}
 pm = dynamic
 pm.max_children = 5
 pm.start_servers = 2
@@ -195,6 +196,7 @@ php_admin_value[php_ini] = {}
 "#,
         pid_path.display(),
         log_path.display(),
+        socket_path.display(),
         php_ini_path.display()
     );
 

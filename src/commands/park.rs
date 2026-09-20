@@ -1,6 +1,7 @@
 use colored::*;
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
+use std::io::Write;
 use comfy_table::presets::UTF8_BORDERS_ONLY;
 use comfy_table::{Attribute, Cell, Color as TableColor, Table};
 
@@ -68,7 +69,37 @@ fn list_parked_folders(dar_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn run() -> Result<(), String> {
+/// Checks if a folder path is already saved in `parked.txt`.
+fn is_parked(dar_dir: &Path, folder: &Path) -> bool {
+    let store_path = dar_dir.join("parked.txt");
+    let folder_str = folder.to_string_lossy();
+
+    let content = fs::read_to_string(&store_path).unwrap_or_default();
+    content.lines().any(|line| line.trim() == folder_str)
+}
+
+/// Appends `folder` to `parked.txt` if it's not already listed.
+pub fn park_folder(dar_dir: &Path, folder: &Path) -> Result<bool, String> {
+    if is_parked(dar_dir, folder) {
+        return Ok(false);
+    }
+
+    let store_path = dar_dir.join("parked.txt");
+    let folder_str = folder.to_string_lossy();
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&store_path)
+        .map_err(|e| format!("Failed to open parked store: {}", e))?;
+
+    writeln!(file, "{}", folder_str)
+        .map_err(|e| format!("Failed to write to parked store: {}", e))?;
+
+    Ok(true)
+}
+
+pub fn get_parked_folders() -> Result<(), String> {
     let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
     let dar_dir = home.join(".dar");
 

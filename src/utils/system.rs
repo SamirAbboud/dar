@@ -10,6 +10,7 @@ pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
         dar_dir.join("nginx"),
         dar_dir.join("sites"),
         dar_dir.join("logs"),
+        dar_dir.join("certs"),
         dar_dir.join("src"),
         dar_dir.join("php"),
         dar_dir.join("php").join("versions"),

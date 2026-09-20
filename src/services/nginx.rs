@@ -145,39 +145,36 @@ http {{
 }
 
 pub fn restart_nginx(nginx_bin: &Path, dar_dir: &Path) -> Result<(), String> {
-    println!(" 🔄 Starting/Reloading Nginx service...");
-    let conf_path = dar_dir.join("nginx").join("conf").join("nginx.conf");
+    println!("{}", "🔄 Reloading Nginx service...".cyan());
     let pid_file = dar_dir.join("logs").join("nginx.pid");
 
-    // Stop existing process if PID exists
-    let _ = Command::new(nginx_bin)
-        .arg("-s")
-        .arg("stop")
-        .arg("-c")
-        .arg(&conf_path)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status();
-
-    // Kill process using the stored PID if port is still bound
     if pid_file.exists() {
         if let Ok(pid_str) = fs::read_to_string(&pid_file) {
-            if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                let _ = Command::new("kill").arg("-9").arg(pid.to_string()).status();
+            let pid = pid_str.trim();
+
+            let reload_status = Command::new("kill")
+                .arg("-HUP")
+                .arg(pid)
+                .stderr(Stdio::null())
+                .status();
+
+            if let Ok(status) = reload_status {
+                if status.success() {
+                    return Ok(());
+                }
             }
         }
+        // Remove stale PID file if process was not running
         let _ = fs::remove_file(&pid_file);
     }
 
-    // Give the kernel socket a split second to release port 8080
-    std::thread::sleep(std::time::Duration::from_millis(200));
-
-    // Start fresh instance
+    // Start Nginx cleanly if reload failed or PID wasn't active
+    let conf_file = dar_dir.join("nginx").join("conf").join("nginx.conf");
     let start_status = Command::new(nginx_bin)
         .arg("-c")
-        .arg(&conf_path)
+        .arg(conf_file)
         .status()
-        .map_err(|e| format!("Failed to start Nginx: {}", e))?;
+        .map_err(|e| format!("Failed to execute Nginx binary: {}", e))?;
 
     if !start_status.success() {
         return Err("Nginx failed to start.".to_string());
@@ -186,3 +183,125 @@ pub fn restart_nginx(nginx_bin: &Path, dar_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Checks if a site configuration file (~/.dar/sites/<app_name>.conf) already exists.
+pub fn is_site_linked(dar_dir: &Path, app_name: &str) -> bool {
+    let config_file = dar_dir.join("sites").join(format!("{}.conf", app_name));
+    config_file.exists()
+}
+
+/// Generates the Nginx server block `.conf` file inside `~/.dar/sites/`.
+pub fn create_site_config(
+    dar_dir: &Path,
+    app_name: &str,
+    app_path: &Path,
+) -> Result<(), String> {
+    let sites_dir = dar_dir.join("sites");
+    let logs_dir = dar_dir.join("logs");
+    let config_file = sites_dir.join(format!("{}.conf", app_name));
+
+    if config_file.exists() {
+        return Err(format!("Site '{}' is already linked.", app_name));
+    }
+
+    let public_dir = app_path.join("public");
+    let document_root = if public_dir.exists() {
+        public_dir
+    } else {
+        app_path.to_path_buf()
+    };
+
+    let access_log = logs_dir.join(format!("{}.access.log", app_name));
+    let error_log = logs_dir.join(format!("{}.error.log", app_name));
+    let socket_path = dar_dir.join("php").join("php-fpm.sock");
+
+    let nginx_config = format!(
+        r#"server {{
+    listen 8080;
+    server_name {app_name}.test;
+    root {root};
+
+    index index.php index.html index.htm;
+
+    access_log {access_log};
+    error_log  {error_log};
+
+    location / {{
+        try_files $uri $uri/ /index.php?$query_string;
+    }}
+
+    location ~ \.php$ {{
+        include fastcgi_params;
+        fastcgi_pass unix:{fpm_sock};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }}
+
+    location ~ /\.ht {{
+        deny all;
+    }}
+}}
+"#,
+        app_name = app_name,
+        root = document_root.display(),
+        access_log = access_log.display(),
+        error_log = error_log.display(),
+        fpm_sock = socket_path.display(),
+    );
+
+    fs::write(&config_file, nginx_config)
+        .map_err(|e| format!("Failed to write site config: {}", e))?;
+
+    Ok(())
+}
+
+/// Ensures `127.0.0.1 <app_name>.test` exists in `/etc/hosts`.
+pub fn ensure_hosts_entry(app_name: &str) -> Result<(), String> {
+    let domain = format!("{}.test", app_name);
+    let hosts_path = Path::new("/etc/hosts");
+
+    // Read existing hosts content
+    let hosts_content = fs::read_to_string(hosts_path).unwrap_or_default();
+
+    if hosts_content.lines().any(|l| l.contains(&domain)) {
+        return Ok(());
+    }
+
+    // Check if /etc/hosts is a read-only symlink (common on NixOS)
+    let is_readonly_system = hosts_path
+        .symlink_metadata()
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false);
+
+    if is_readonly_system {
+        println!(
+            "  {}",
+            format!("ℹ System /etc/hosts is read-only. Using local DNS for {}.", domain).dimmed()
+        );
+        return Ok(());
+    }
+
+    // Attempt sudo append only on writable Linux distributions
+    println!("  {}", format!("Adding {} to /etc/hosts...", domain).cyan());
+
+    let host_entry = format!("127.0.0.1 {}\n", domain);
+    let status = Command::new("sudo")
+        .arg("sh")
+        .arg("-c")
+        .arg(format!("echo '{}' >> /etc/hosts", host_entry.trim()))
+        .stderr(Stdio::null())
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            println!("  {}", format!("✔ Added {} to /etc/hosts", domain).dimmed());
+        }
+        _ => {
+            println!(
+                "  {}",
+                format!("ℹ Could not write to /etc/hosts. Using local DNS for {}.", domain).dimmed()
+            );
+        }
+    }
+
+    Ok(())
+}
