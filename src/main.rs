@@ -22,6 +22,8 @@ struct Cli {
 enum Commands {
     /// Install Dar environment (nginx include, folders, PHP-FPM)
     Install,
+    /// List all parked development directories
+    Parked,
 }
 
 fn main() {
@@ -29,6 +31,7 @@ fn main() {
 
     let result = match cli.command {
         Commands::Install => commands::install::run(),
+        Commands::Parked => commands::parked::run(),
     };
 
     if let Err(err_msg) = result {
