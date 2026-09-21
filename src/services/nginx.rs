@@ -6,6 +6,7 @@ use std::process::{Command, Stdio};
 use crate::utils::archive::resolve_build_dir;
 use crate::utils::system::get_available_compiler;
 
+/// Builds and installs Nginx from source.
 pub fn build_and_install_nginx(
     src_folder_raw: &Path,
     pcre_folder_raw: &Path,
@@ -101,6 +102,7 @@ pub fn build_and_install_nginx(
     Ok(())
 }
 
+/// Creates a default Nginx configuration file in `~/.dar/nginx/conf/nginx.conf`.
 pub fn create_default_nginx_config(dar_dir: &Path) -> Result<(), String> {
     let conf_dir = dar_dir.join("nginx").join("conf");
     let conf_file = conf_dir.join("nginx.conf");
@@ -122,7 +124,7 @@ http {{
     keepalive_timeout  65;
 
     server {{
-        listen 8080 default_server;
+        listen 80 default_server;
         server_name localhost;
 
         location / {{
@@ -144,6 +146,7 @@ http {{
     Ok(())
 }
 
+/// Restarts the Nginx service.
 pub fn restart_nginx(nginx_bin: &Path, dar_dir: &Path) -> Result<(), String> {
     println!("{}", "🔄 Reloading Nginx service...".cyan());
     let pid_file = dar_dir.join("logs").join("nginx.pid");
@@ -216,7 +219,7 @@ pub fn create_site_config(
 
     let nginx_config = format!(
         r#"server {{
-    listen 8080;
+    listen 80;
     server_name {app_name}.test;
     root {root};
 
@@ -301,6 +304,23 @@ pub fn ensure_hosts_entry(app_name: &str) -> Result<(), String> {
                 format!("ℹ Could not write to /etc/hosts. Using local DNS for {}.", domain).dimmed()
             );
         }
+    }
+
+    Ok(())
+}
+
+/// Grants the Nginx binary capability to bind to low-numbered privileged ports (port 80)
+pub fn set_nginx_capabilities(nginx_bin: &Path) -> Result<(), String> {
+    // Grant privilege to bind to port 80 without root
+    let status = Command::new("sudo")
+        .arg("setcap")
+        .arg("cap_net_bind_service=+ep")
+        .arg(nginx_bin)
+        .status()
+        .map_err(|e| format!("Failed to execute setcap: {}", e))?;
+
+    if !status.success() {
+        return Err("Failed to grant port 80 binding privileges to Nginx binary.".to_string());
     }
 
     Ok(())

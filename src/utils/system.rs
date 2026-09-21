@@ -3,6 +3,8 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::process::Command;
 
+/// Creates the essential `~/.dar` directory hierarchy (bin, nginx, sites, logs, certs, src, php) 
+/// and initializes `parked.txt` if it does not already exist.
 pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
     let dirs = [
         dar_dir.to_path_buf(),
@@ -33,6 +35,8 @@ pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Detects an available C compiler on the host system, checking the `CC` environment variable 
+/// first, then probing for `gcc`, `clang`, or `cc`, falling back to `clang`.
 pub fn get_available_compiler() -> String {
     if let Ok(cc) = std::env::var("CC") {
         return cc;

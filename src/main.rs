@@ -26,8 +26,13 @@ enum Commands {
     Parked,
     /// Link current directory or specified name as a local dev site
     Link {
-        /// Optional site name (defaults to current folder name)
+        /// Optional custom domain name (defaults to target directory name)
+        #[arg(short, long)]
         name: Option<String>,
+
+        /// Optional target directory path (defaults to current working directory)
+        #[arg(short, long)]
+        path: Option<String>,
     },
 }
 
@@ -37,7 +42,7 @@ fn main() {
     let result = match cli.command {
         Commands::Install => commands::install::run(),
         Commands::Parked => commands::park::get_parked_folders(),
-        Commands::Link { name } => commands::link::run(name),
+        Commands::Link { name, path } => commands::link::run(name, path),
     };
 
     if let Err(err_msg) = result {

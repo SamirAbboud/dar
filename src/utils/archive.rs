@@ -6,6 +6,8 @@ use tar::Archive;
 use std::time::Duration;
 use std::thread::sleep;
 
+/// Downloads a compressed `.tar.gz` archive with automatic retries and extracts 
+/// its contents into the target directory inside `~/.dar/src/`.
 pub fn fetch_and_extract(
     src_dir: &Path,
     name: &str,
@@ -86,6 +88,8 @@ pub fn fetch_and_extract(
     Ok(target_folder)
 }
 
+/// Recursively searches a directory tree and returns the path to the first file 
+/// matching the specified filename.
 pub fn find_file_recursive(dir: &Path, filename: &str) -> Option<PathBuf> {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -102,6 +106,8 @@ pub fn find_file_recursive(dir: &Path, filename: &str) -> Option<PathBuf> {
     None
 }
 
+/// Inspects an extracted directory path and unnest it if all contents are wrapped 
+/// inside a single top-level subdirectory.
 pub fn resolve_build_dir(path: &Path) -> PathBuf {
     if let Ok(entries) = fs::read_dir(path) {
         let items: Vec<PathBuf> = entries.filter_map(|e| e.ok().map(|e| e.path())).collect();

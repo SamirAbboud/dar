@@ -2,6 +2,8 @@ use std::fs::{self, File};
 use std::io;
 use std::path::Path;
 
+/// Downloads the latest stable `composer.phar` into `~/.dar/bin/` if missing 
+/// and generates an executable shell wrapper script pointing to the isolated PHP runtim
 pub fn ensure_composer(dar_dir: &Path) -> Result<(), String> {
     let bin_dir = dar_dir.join("bin");
     if !bin_dir.exists() {

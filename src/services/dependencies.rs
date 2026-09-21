@@ -1,6 +1,7 @@
 use crate::utils::archive::fetch_and_extract;
 use std::path::{Path, PathBuf};
 
+/// Downloads and extracts the PCRE2 source tarball if not already present in `~/.dar/src`.
 pub fn ensure_pcre2_source(src_dir: &Path, version: &str) -> Result<PathBuf, String> {
     fetch_and_extract(
         src_dir,
@@ -14,6 +15,7 @@ pub fn ensure_pcre2_source(src_dir: &Path, version: &str) -> Result<PathBuf, Str
     )
 }
 
+/// Downloads and extracts the OpenSSL source tarball if not already present in `~/.dar/src`.
 pub fn ensure_openssl_source(src_dir: &Path, version: &str) -> Result<PathBuf, String> {
     fetch_and_extract(
         src_dir,
@@ -27,6 +29,7 @@ pub fn ensure_openssl_source(src_dir: &Path, version: &str) -> Result<PathBuf, S
     )
 }
 
+/// Downloads and extracts the zlib source tarball if not already present in `~/.dar/src`.
 pub fn ensure_zlib_source(src_dir: &Path, version: &str) -> Result<PathBuf, String> {
     fetch_and_extract(
         src_dir,
@@ -40,6 +43,7 @@ pub fn ensure_zlib_source(src_dir: &Path, version: &str) -> Result<PathBuf, Stri
     )
 }
 
+/// Downloads and extracts the Nginx source tarball if not already present in `~/.dar/src`.
 pub fn ensure_nginx_source(src_dir: &Path, version: &str) -> Result<PathBuf, String> {
     fetch_and_extract(
         src_dir,

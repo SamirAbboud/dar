@@ -45,6 +45,8 @@ impl PhpProvider {
     }
 }
 
+/// Downloads and sets up an isolated PHP runtime (FPM and CLI) for the specified version,
+/// updating the `~/.dar/php/current` symlink to point to the active version.
 pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), String> {
     let versions_dir = dar_dir.join("php").join("versions");
     let target_version_dir = versions_dir.join(php_version);
@@ -107,6 +109,8 @@ pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), Strin
     Ok(())
 }
 
+/// Verifies whether the local PHP-FPM process is running via its PID file,
+/// starting a new daemonized instance with custom configuration if inactive.
 pub fn ensure_php_fpm_running(dar_dir: &Path) -> Result<(), String> {
     let conf_path = create_default_php_fpm_config(dar_dir)?;
     let local_php_fpm = dar_dir
@@ -166,6 +170,8 @@ pub fn ensure_php_fpm_running(dar_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Generates the global `php-fpm.conf` file in `~/.dar/php/`, configuring socket listening,
+/// process management settings, and logging locations.
 pub fn create_default_php_fpm_config(dar_dir: &Path) -> Result<PathBuf, String> {
     let php_dir = dar_dir.join("php");
     if !php_dir.exists() {
@@ -206,6 +212,8 @@ php_admin_value[php_ini] = {}
     Ok(conf_path)
 }
 
+/// Extracts and copies downloaded PHP FPM and CLI binaries into standard `sbin/` and `bin/` 
+/// directories inside the versioned installation folder, ensuring `0755` execution per
 fn setup_binary_package(
     fpm_folder: &Path,
     cli_folder: &Path,
@@ -241,6 +249,7 @@ fn setup_binary_package(
     Ok(())
 }
 
+/// Ensures a default `php.ini` file exists in `~/.dar/php/` with optimized local development settings.
 fn ensure_php_ini(dar_dir: &Path) -> Result<PathBuf, String> {
     let php_dir = dar_dir.join("php");
     let ini_path = php_dir.join("php.ini");

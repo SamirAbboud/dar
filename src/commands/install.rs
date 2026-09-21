@@ -1,7 +1,7 @@
 use colored::*;
 
 use crate::config::load_or_create_config;
-use crate::services::nginx::{build_and_install_nginx, create_default_nginx_config, restart_nginx};
+use crate::services::nginx::{build_and_install_nginx, create_default_nginx_config, restart_nginx, set_nginx_capabilities};
 use crate::services::php::{ensure_php_fpm_running, fetch_isolated_php};
 use crate::utils::system::setup_directories;
 
@@ -10,6 +10,8 @@ use crate::services::dependencies::{
 };
 use crate::services::composer::ensure_composer;
 
+/// Initializes the ~/.dar directory structure, builds isolated dependencies 
+/// (Nginx, PHP-FPM, Composer), and configures initial environment settings.
 pub fn run() -> Result<(), String> {
     println!("{}", "🚀 Initializing Dar environment setup...".cyan().bold());
 
@@ -42,6 +44,7 @@ pub fn run() -> Result<(), String> {
         )?;
     }
 
+    set_nginx_capabilities(&nginx_bin)?;
     fetch_isolated_php(&dar_dir, &cfg.default_php)?;
     ensure_composer(&dar_dir)?;
     create_default_nginx_config(&dar_dir)?;

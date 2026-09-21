@@ -99,6 +99,7 @@ pub fn park_folder(dar_dir: &Path, folder: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Reads and displays all currently parked directories stored in ~/.dar/parked.txt.
 pub fn get_parked_folders() -> Result<(), String> {
     let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
     let dar_dir = home.join(".dar");

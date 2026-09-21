@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
+/// Stores pinned upstream dependency versions for Nginx, C libraries, and PHP.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VersionsConfig {
     pub nginx: String,
@@ -23,6 +24,9 @@ impl Default for VersionsConfig {
     }
 }
 
+
+/// Reads `~/.dar/versions.toml` if present, or creates and saves a new config 
+/// initialized with default dependency versions.
 pub fn load_or_create_config(dar_dir: &Path) -> Result<VersionsConfig, String> {
     let config_path = dar_dir.join("versions.toml");
 
