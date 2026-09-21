@@ -26,6 +26,9 @@ enum Commands {
     /// Start background services (Nginx & PHP-FPM)
     Start,
 
+    /// Stop active background services
+    Stop,
+
     /// List all parked development directories
     Parked,
 
@@ -47,6 +50,7 @@ fn main() {
     let result = match cli.command {
         Commands::Install => commands::install::run(),
         Commands::Start => commands::start::run(),
+        Commands::Stop => commands::stop::run(),
         Commands::Parked => commands::park::get_parked_folders(),
         Commands::Link { name, path } => commands::link::run(name, path),
     };
