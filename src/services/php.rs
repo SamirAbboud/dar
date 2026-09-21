@@ -128,6 +128,8 @@ pub fn ensure_php_fpm_running(dar_dir: &Path) -> Result<(), String> {
                 Command::new("kill")
                     .arg("-0")
                     .arg(pid.to_string())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .status()
                     .map(|s| s.success())
                     .unwrap_or(false)
@@ -142,7 +144,7 @@ pub fn ensure_php_fpm_running(dar_dir: &Path) -> Result<(), String> {
     };
 
     if !is_running {
-        println!(" 🐘 Starting local PHP-FPM service...");
+        println!("🐘 Starting local PHP-FPM service...");
 
         if !local_php_fpm.exists() {
             return Err(format!(
@@ -164,7 +166,7 @@ pub fn ensure_php_fpm_running(dar_dir: &Path) -> Result<(), String> {
             return Err("PHP-FPM failed to start.".to_string());
         }
     } else {
-        println!(" 🐘 Local PHP-FPM is already running.");
+        println!("🐘 Local PHP-FPM is already running.");
     }
 
     Ok(())

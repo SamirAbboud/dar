@@ -22,8 +22,13 @@ struct Cli {
 enum Commands {
     /// Install Dar environment (nginx include, folders, PHP-FPM)
     Install,
+
+    /// Start background services (Nginx & PHP-FPM)
+    Start,
+
     /// List all parked development directories
     Parked,
+
     /// Link current directory or specified name as a local dev site
     Link {
         /// Optional custom domain name (defaults to target directory name)
@@ -41,6 +46,7 @@ fn main() {
 
     let result = match cli.command {
         Commands::Install => commands::install::run(),
+        Commands::Start => commands::start::run(),
         Commands::Parked => commands::park::get_parked_folders(),
         Commands::Link { name, path } => commands::link::run(name, path),
     };
