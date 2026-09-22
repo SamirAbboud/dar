@@ -41,6 +41,22 @@ enum Commands {
         /// Optional target directory path (defaults to current working directory)
         #[arg(short, long)]
         path: Option<String>,
+
+        /// Secure the site with an SSL/TLS certificate on link
+        #[arg(short, long)]
+        secure: bool,
+    },
+
+    /// Secure a local .test site with SSL/TLS certificate
+    /// Secure a local .test site with an SSL/TLS certificate
+    Secure {
+        /// Optional custom domain name (defaults to target directory name)
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Optional target directory path (defaults to current working directory)
+        #[arg(short, long)]
+        path: Option<String>,
     },
 }
 
@@ -52,7 +68,8 @@ fn main() {
         Commands::Start => commands::start::run(),
         Commands::Stop => commands::stop::run(),
         Commands::Parked => commands::park::get_parked_folders(),
-        Commands::Link { name, path } => commands::link::run(name, path),
+        Commands::Link { name, path, secure } => commands::link::run(name, path, secure),
+        Commands::Secure { name, path } => commands::secure::run(name, path),
     };
 
     if let Err(err_msg) = result {

@@ -39,10 +39,10 @@ If `/etc/hosts` is read-only, you must configure local wildcard DNS once so all 
   # Route ONLY .test queries to local dnsmasq
   services.resolved = {
     enable = true;
-    domains = [ "~test" ];
     settings = {
       Resolve = {
         DNS = [ "127.0.0.1:5353" ];
+        Domains = [ "~test" ];
       };
     };
   };
@@ -57,3 +57,23 @@ If `/etc/hosts` is read-only, you must configure local wildcard DNS once so all 
     };
   };
 ```
+
+### System-wide Trust for Local Root CA (`mkcert`)
+
+On standard Linux distributions (Ubuntu, Arch, etc.), `dar` automatically installs the Root CA into your trust store. 
+
+On **NixOS**, because `/etc/ssl/certs` is read-only, you must add your `mkcert` Root CA to `security.pki.certificateFiles` in `configuration.nix`:
+
+```nix
+  # Trust local mkcert Root CA system-wide
+  security.pki.certificateFiles = [
+    (builtins.path {
+      path = "${config.users.users.samir.home}/.local/share/mkcert/rootCA.pem";
+      name = "mkcert-rootCA.pem";
+    })
+  ];
+```
+
+> **Flake Users:** When rebuilding your Flake configuration, pass `--impure` to allow Nix to read the certificate from your home directory:
+>
+> `sudo nixos-rebuild switch --flake .#nixos --impure`

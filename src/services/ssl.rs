@@ -63,3 +63,34 @@ pub fn ensure_mkcert(dar_dir: &Path, version: &str) -> Result<PathBuf, String> {
 
     Ok(mkcert_bin)
 }
+
+/// Generates SSL certificate and key for `{app_name}.test` inside `~/.dar/certs/`.
+pub fn generate_certificate(dar_dir: &Path, app_name: &str, mkcert_bin: &Path) -> Result<(), String> {
+    let certs_dir = dar_dir.join("certs");
+    if !certs_dir.exists() {
+        fs::create_dir_all(&certs_dir)
+            .map_err(|e| format!("Failed to create certs directory: {}", e))?;
+    }
+
+    let cert_file = certs_dir.join(format!("{}.test.pem", app_name));
+    let key_file = certs_dir.join(format!("{}.test-key.pem", app_name));
+    let domain = format!("{}.test", app_name);
+
+    let status = Command::new(mkcert_bin)
+        .arg("-cert-file")
+        .arg(&cert_file)
+        .arg("-key-file")
+        .arg(&key_file)
+        .arg(&domain)
+        .arg(format!("*.{}", domain))
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| format!("Failed to execute mkcert for {}: {}", domain, e))?;
+
+    if !status.success() {
+        return Err(format!("Failed to generate SSL certificate for {}", domain));
+    }
+
+    Ok(())
+}

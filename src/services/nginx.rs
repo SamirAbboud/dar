@@ -197,14 +197,12 @@ pub fn create_site_config(
     dar_dir: &Path,
     app_name: &str,
     app_path: &Path,
+    is_secured: bool,
 ) -> Result<(), String> {
     let sites_dir = dar_dir.join("sites");
     let logs_dir = dar_dir.join("logs");
+    let certs_dir = dar_dir.join("certs");
     let config_file = sites_dir.join(format!("{}.conf", app_name));
-
-    if config_file.exists() {
-        return Err(format!("Site '{}' is already linked.", app_name));
-    }
 
     let public_dir = app_path.join("public");
     let document_root = if public_dir.exists() {
@@ -217,8 +215,57 @@ pub fn create_site_config(
     let error_log = logs_dir.join(format!("{}.error.log", app_name));
     let socket_path = dar_dir.join("php").join("php-fpm.sock");
 
-    let nginx_config = format!(
-        r#"server {{
+    let nginx_config = if is_secured {
+        let cert_file = certs_dir.join(format!("{}.test.pem", app_name));
+        let key_file = certs_dir.join(format!("{}.test-key.pem", app_name));
+
+        format!(
+            r#"server {{
+    listen 80;
+    server_name {app_name}.test;
+    return 301 https://$host$request_uri;
+}}
+
+server {{
+    listen 443 ssl;
+    server_name {app_name}.test;
+    root {root};
+
+    ssl_certificate     {cert};
+    ssl_certificate_key {key};
+
+    index index.php index.html index.htm;
+
+    access_log {access_log};
+    error_log  {error_log};
+
+    location / {{
+        try_files $uri $uri/ /index.php?$query_string;
+    }}
+
+    location ~ \.php$ {{
+        include fastcgi_params;
+        fastcgi_pass unix:{fpm_sock};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }}
+
+    location ~ /\.ht {{
+        deny all;
+    }}
+}}
+"#,
+            app_name = app_name,
+            root = document_root.display(),
+            cert = cert_file.display(),
+            key = key_file.display(),
+            access_log = access_log.display(),
+            error_log = error_log.display(),
+            fpm_sock = socket_path.display(),
+        )
+    } else {
+        format!(
+            r#"server {{
     listen 80;
     server_name {app_name}.test;
     root {root};
@@ -244,12 +291,13 @@ pub fn create_site_config(
     }}
 }}
 "#,
-        app_name = app_name,
-        root = document_root.display(),
-        access_log = access_log.display(),
-        error_log = error_log.display(),
-        fpm_sock = socket_path.display(),
-    );
+            app_name = app_name,
+            root = document_root.display(),
+            access_log = access_log.display(),
+            error_log = error_log.display(),
+            fpm_sock = socket_path.display(),
+        )
+    };
 
     fs::write(&config_file, nginx_config)
         .map_err(|e| format!("Failed to write site config: {}", e))?;
