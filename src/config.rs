@@ -10,6 +10,7 @@ pub struct VersionsConfig {
     pub openssl: String,
     pub zlib: String,
     pub default_php: String,
+    pub mkcert: String,
 }
 
 impl Default for VersionsConfig {
@@ -20,6 +21,7 @@ impl Default for VersionsConfig {
             openssl: "3.0.15".to_string(),
             zlib: "1.3.1".to_string(),
             default_php: "8.3.11".to_string(),
+            mkcert: "1.4.4".to_string(),
         }
     }
 }
