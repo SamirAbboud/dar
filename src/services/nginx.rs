@@ -213,83 +213,22 @@ pub fn create_site_config(
         let cert_file = certs_dir.join(format!("{}.test.pem", app_name));
         let key_file = certs_dir.join(format!("{}.test-key.pem", app_name));
 
-        format!(
-            r#"server {{
-    listen 80;
-    server_name {app_name}.test;
-    return 301 https://$host$request_uri;
-}}
-
-server {{
-    listen 443 ssl;
-    server_name {app_name}.test;
-    root {root};
-
-    ssl_certificate     {cert};
-    ssl_certificate_key {key};
-
-    index index.php index.html index.htm;
-
-    access_log {access_log};
-    error_log  {error_log};
-
-    location / {{
-        try_files $uri $uri/ /index.php?$query_string;
-    }}
-
-    location ~ \.php$ {{
-        include fastcgi_params;
-        fastcgi_pass unix:{fpm_sock};
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }}
-
-    location ~ /\.ht {{
-        deny all;
-    }}
-}}
-"#,
-            app_name = app_name,
-            root = document_root.display(),
-            cert = cert_file.display(),
-            key = key_file.display(),
-            access_log = access_log.display(),
-            error_log = error_log.display(),
-            fpm_sock = socket_path.display(),
+        build_https_config(
+            app_name,
+            &document_root,
+            &cert_file,
+            &key_file,
+            &access_log,
+            &error_log,
+            &socket_path,
         )
     } else {
-        format!(
-            r#"server {{
-    listen 80;
-    server_name {app_name}.test;
-    root {root};
-
-    index index.php index.html index.htm;
-
-    access_log {access_log};
-    error_log  {error_log};
-
-    location / {{
-        try_files $uri $uri/ /index.php?$query_string;
-    }}
-
-    location ~ \.php$ {{
-        include fastcgi_params;
-        fastcgi_pass unix:{fpm_sock};
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    }}
-
-    location ~ /\.ht {{
-        deny all;
-    }}
-}}
-"#,
-            app_name = app_name,
-            root = document_root.display(),
-            access_log = access_log.display(),
-            error_log = error_log.display(),
-            fpm_sock = socket_path.display(),
+        build_http_config(
+            app_name,
+            &document_root,
+            &access_log,
+            &error_log,
+            &socket_path,
         )
     };
 
@@ -367,3 +306,104 @@ pub fn set_nginx_capabilities(nginx_bin: &Path) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Builds the standard HTTP Nginx server block.
+fn build_http_config(
+    app_name: &str,
+    root: &Path,
+    access_log: &Path,
+    error_log: &Path,
+    fpm_sock: &Path,
+) -> String {
+    format!(
+        r#"server {{
+    listen 80;
+    server_name {app_name}.test;
+    root {root};
+
+    index index.php index.html index.htm;
+
+    access_log {access_log};
+    error_log  {error_log};
+
+    location / {{
+        try_files $uri $uri/ /index.php?$query_string;
+    }}
+
+    location ~ \.php$ {{
+        include fastcgi_params;
+        fastcgi_pass unix:{fpm_sock};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }}
+
+    location ~ /\.ht {{
+        deny all;
+    }}
+}}
+"#,
+        app_name = app_name,
+        root = root.display(),
+        access_log = access_log.display(),
+        error_log = error_log.display(),
+        fpm_sock = fpm_sock.display(),
+    )
+}
+
+/// Builds the HTTPS Nginx server block with HTTP -> HTTPS redirection.
+fn build_https_config(
+    app_name: &str,
+    root: &Path,
+    cert: &Path,
+    key: &Path,
+    access_log: &Path,
+    error_log: &Path,
+    fpm_sock: &Path,
+) -> String {
+
+    format!(
+        r#"server {{
+    listen 80;
+    server_name {app_name}.test;
+    return 301 https://$host$request_uri;
+}}
+
+server {{
+    listen 443 ssl;
+    server_name {app_name}.test;
+    root {root};
+
+    ssl_certificate     {cert};
+    ssl_certificate_key {key};
+
+    index index.php index.html index.htm;
+
+    access_log {access_log};
+    error_log  {error_log};
+
+    location / {{
+        try_files $uri $uri/ /index.php?$query_string;
+    }}
+
+    location ~ \.php$ {{
+        include fastcgi_params;
+        fastcgi_pass unix:{fpm_sock};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    }}
+
+    location ~ /\.ht {{
+        deny all;
+    }}
+}}
+"#,
+        app_name = app_name,
+        root = root.display(),
+        cert = cert.display(),
+        key = key.display(),
+        access_log = access_log.display(),
+        error_log = error_log.display(),
+        fpm_sock = fpm_sock.display(),
+    )
+}
+

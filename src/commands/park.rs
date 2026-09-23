@@ -35,7 +35,7 @@ fn read_parked_folders(dar_dir: &Path) -> Vec<(String, String)> {
 /// Formats and prints the parked folders table to stdout.
 fn print_parked_folders(rows: &[(String, String)]) {
     if rows.is_empty() {
-        println!("{}", "No folders are currently parked.".cyan());
+        println!("\n{} No folders are currently parked.\n", "ℹ".cyan());
         return;
     }
 
