@@ -5,37 +5,40 @@ use crate::store::SitesStore;
 use crate::store::site::Site;
 use colored::*;
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-/// Links a directory to a local `.test` domain.
-/// 
-/// Accepts optional `--name`, `--path`, and `--secure` overrides.
-pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(), String> {
-    let current_dir = env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
 
-    let target_path = match path {
+/// Resolves target directory from optional CLI arg or current working directory.
+fn resolve_target_path(path_arg: Option<String>) -> Result<PathBuf, String> {
+    match path_arg {
         Some(p) => {
             let custom_path = PathBuf::from(p);
             if !custom_path.exists() {
                 return Err(format!("The path '{}' does not exist.", custom_path.display()));
             }
-            custom_path.canonicalize().map_err(|e| format!("Path resolution failed: {}", e))?
+            custom_path.canonicalize().map_err(|e| format!("Path resolution failed: {}", e))
         }
-        None => current_dir,
-    };
+        None => env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e)),
+    }
+}
 
-    let app_name = match name {
-        Some(n) if !n.trim().is_empty() => n.trim().to_string(),
+/// Resolves app name from optional CLI arg or folder name.
+fn resolve_app_name(name_arg: Option<String>, target_path: &Path) -> Result<String, String> {
+    match name_arg {
+        Some(n) if !n.trim().is_empty() => Ok(n.trim().to_string()),
         _ => target_path
             .file_name()
-            .ok_or_else(|| "Invalid target directory name".to_string())?
-            .to_string_lossy()
-            .to_string(),
-    };
+            .ok_or_else(|| "Invalid target directory name".to_string())
+            .map(|s| s.to_string_lossy().to_string()),
+    }
+}
 
-    let home = dirs::home_dir()
-        .ok_or_else(|| "Could not determine home directory".to_string())?;
+/// Links a directory to a local `.test` domain.
+pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(), String> {
+    let target_path = resolve_target_path(path)?;
+    let app_name = resolve_app_name(name, &target_path)?;
+
+    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
     let dar_dir = home.join(".dar");
     let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");
     let mkcert_bin = dar_dir.join("bin").join("mkcert");
