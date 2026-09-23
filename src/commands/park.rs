@@ -2,8 +2,9 @@ use colored::*;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::io::Write;
-use comfy_table::presets::UTF8_BORDERS_ONLY;
-use comfy_table::{Attribute, Cell, Color as TableColor, Table};
+use comfy_table::{Attribute, Cell};
+
+use crate::utils::table::create_table;
 
 /// Reads `parked.txt` from `dar_dir` and resolves paths into (Name, Path) pairs.
 fn read_parked_folders(dar_dir: &Path) -> Vec<(String, String)> {
@@ -38,19 +39,7 @@ fn print_parked_folders(rows: &[(String, String)]) {
         return;
     }
 
-    let indigo = TableColor::Rgb {
-        r: 187,
-        g: 154,
-        b: 247,
-    };
-
-    let mut table = Table::new();
-    table.load_preset(UTF8_BORDERS_ONLY);
-
-    table.set_header(vec![
-        Cell::new("Name").fg(indigo).add_attribute(Attribute::Bold),
-        Cell::new("Path").fg(indigo).add_attribute(Attribute::Bold),
-    ]);
+    let mut table = create_table(&["Name", "Path"]);
 
     for (name, path) in rows {
         table.add_row(vec![

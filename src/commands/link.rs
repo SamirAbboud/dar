@@ -1,9 +1,10 @@
-use crate::services::nginx::{create_site_config, ensure_hosts_entry, is_site_linked, restart_nginx};
+use crate::services::nginx::{create_site_config, ensure_hosts_entry, restart_nginx};
 use crate::commands::park::park_folder;
 use crate::services::ssl::generate_certificate;
+use crate::store::SitesStore;
+use crate::store::site::Site;
 use colored::*;
 use std::env;
-use std::fs;
 use std::path::PathBuf;
 
 /// Links a directory to a local `.test` domain.
@@ -39,18 +40,13 @@ pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(
     let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");
     let mkcert_bin = dar_dir.join("bin").join("mkcert");
 
-    // Correct path: ~/.dar/sites/<app_name>.conf
-    let config_path = dar_dir.join("sites").join(format!("{}.conf", app_name));
-    let already_linked = is_site_linked(&dar_dir, &app_name);
+    // Load store
+    let mut store = SitesStore::load(&dar_dir)?;
+    let existing_site = store.get(&app_name).cloned();
 
-    if already_linked {
-        let is_already_secured = match fs::read_to_string(&config_path) {
-            Ok(content) => content.contains("ssl_certificate") || content.contains("listen 443"),
-            Err(_) => false,
-        };
-
+    if let Some(ref site) = existing_site {
         // 1. If site is already HTTPS
-        if is_already_secured {
+        if site.secured {
             println!(
                 "\n{} Site '{}' is already linked and secured ({})\n",
                 "ℹ".cyan(),
@@ -89,26 +85,30 @@ pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(
     // 2. Generate/overwrite Nginx virtual host configuration
     create_site_config(&dar_dir, &app_name, &target_path, secure)?;
 
-    // 3. Ensure local DNS entry exists
+    // 3. Save / Update site entry in store
+    let site_record = Site::new(&app_name, target_path.clone(), secure);
+    store.add(site_record)?;
+
+    // 4. Ensure local DNS entry exists
     ensure_hosts_entry(&app_name)?;
 
-    // 4. Auto-park parent folder if not already parked
+    // 5. Auto-park parent folder if not already parked
     if let Some(parent_dir) = target_path.parent() {
         if let Ok(was_added) = park_folder(&dar_dir, parent_dir) {
             if was_added {
                 println!(
                     "{}",
-                    format!("  📂 Auto-parked parent folder: {}", parent_dir.display()).dimmed()
+                    format!("📂 Auto-parked parent folder: {}", parent_dir.display()).dimmed()
                 );
             }
         }
     }
 
-    // 5. Reload Nginx
+    // 6. Reload Nginx
     restart_nginx(&nginx_bin, &dar_dir)?;
 
     let protocol = if secure { "https" } else { "http" };
-    let action_msg = if already_linked && secure {
+    let action_msg = if existing_site.is_some() && secure {
         "Site secured"
     } else {
         "Site linked"

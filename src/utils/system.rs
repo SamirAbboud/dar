@@ -32,6 +32,12 @@ pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
             .map_err(|e| format!("Failed to create parked store: {}", e))?;
     }
 
+    let sites_store = dar_dir.join("sites.json");
+    if !sites_store.exists() {
+        fs::write(&sites_store, "{}")
+            .map_err(|e| format!("Failed to create sites store: {}", e))?;
+    }
+
     Ok(())
 }
 

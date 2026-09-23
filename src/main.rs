@@ -5,6 +5,7 @@ mod commands;
 mod config;
 mod services;
 mod utils;
+mod store;
 
 #[derive(Parser)]
 #[command(
@@ -58,6 +59,9 @@ enum Commands {
         #[arg(short, long)]
         path: Option<String>,
     },
+
+    /// List all linked local development sites
+    Sites,
 }
 
 fn main() {
@@ -70,6 +74,7 @@ fn main() {
         Commands::Parked => commands::park::get_parked_folders(),
         Commands::Link { name, path, secure } => commands::link::run(name, path, secure),
         Commands::Secure { name, path } => commands::secure::run(name, path),
+        Commands::Sites => commands::sites::run(),
     };
 
     if let Err(err_msg) = result {

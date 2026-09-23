@@ -186,12 +186,6 @@ pub fn restart_nginx(nginx_bin: &Path, dar_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Checks if a site configuration file (~/.dar/sites/<app_name>.conf) already exists.
-pub fn is_site_linked(dar_dir: &Path, app_name: &str) -> bool {
-    let config_file = dar_dir.join("sites").join(format!("{}.conf", app_name));
-    config_file.exists()
-}
-
 /// Generates the Nginx server block `.conf` file inside `~/.dar/sites/`.
 pub fn create_site_config(
     dar_dir: &Path,
