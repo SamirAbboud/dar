@@ -52,12 +52,22 @@ impl SitesStore {
     }
 
     /// Removes a site by name.
-    #[allow(dead_code)]
     pub fn remove(&mut self, name: &str) -> Result<Option<Site>, String> {
         let removed = self.sites.remove(name);
         if removed.is_some() {
             self.save()?;
         }
         Ok(removed)
+    }
+
+    /// Updates the SSL secured status of a site and persists changes to disk.
+    pub fn set_secured(&mut self, name: &str, secured: bool) -> Result<bool, String> {
+        if let Some(site) = self.sites.get_mut(name) {
+            site.set_secured(secured);
+            self.save()?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }

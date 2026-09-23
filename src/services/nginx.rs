@@ -307,6 +307,16 @@ pub fn set_nginx_capabilities(nginx_bin: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Deletes the site configuration file if it exists.
+pub fn remove_site_config(dar_dir: &Path, app_name: &str) -> Result<(), String> {
+    let config_file = dar_dir.join("sites").join(format!("{}.conf", app_name));
+    if config_file.exists() {
+        fs::remove_file(&config_file)
+            .map_err(|e| format!("Failed to delete site config: {}", e))?;
+    }
+    Ok(())
+}
+
 /// Builds the standard HTTP Nginx server block.
 fn build_http_config(
     app_name: &str,

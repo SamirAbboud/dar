@@ -49,13 +49,34 @@ enum Commands {
     },
 
     /// Secure a local .test site with SSL/TLS certificate
-    /// Secure a local .test site with an SSL/TLS certificate
     Secure {
         /// Optional custom domain name (defaults to target directory name)
         #[arg(short, long)]
         name: Option<String>,
 
         /// Optional target directory path (defaults to current working directory)
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+
+    /// Unlink a site and remove its local Nginx configuration
+    Unlink {
+        /// Optional custom domain name of the site to unlink (defaults to directory name)
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Optional path to the project directory (defaults to current directory)
+        #[arg(short, long)]
+        path: Option<String>,
+    },
+
+    /// Unsecure a site by removing SSL certificates and reverting to HTTP
+    Unsecure {
+        /// Optional custom domain name of the site to unsecure (defaults to directory name)
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Optional path to the project directory (defaults to current directory)
         #[arg(short, long)]
         path: Option<String>,
     },
@@ -74,6 +95,8 @@ fn main() {
         Commands::Parked => commands::park::get_parked_folders(),
         Commands::Link { name, path, secure } => commands::link::run(name, path, secure),
         Commands::Secure { name, path } => commands::secure::run(name, path),
+        Commands::Unlink { name, path } => commands::unlink::run(name, path),
+        Commands::Unsecure { name, path } => commands::unsecure::run(name, path),
         Commands::Sites => commands::sites::run(),
     };
 

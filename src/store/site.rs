@@ -19,4 +19,8 @@ impl Site {
             created_at: Local::now().to_rfc3339(),
         }
     }
+
+    pub fn set_secured(&mut self, secured: bool) {
+        self.secured = secured;
+    }
 }

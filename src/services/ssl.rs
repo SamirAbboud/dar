@@ -94,3 +94,19 @@ pub fn generate_certificate(dar_dir: &Path, app_name: &str, mkcert_bin: &Path) -
 
     Ok(())
 }
+
+/// Removes SSL certificate files for a given app name.
+pub fn remove_certificate(dar_dir: &Path, app_name: &str) -> Result<(), String> {
+    let certs_dir = dar_dir.join("certs");
+    let cert_file = certs_dir.join(format!("{}.test.pem", app_name));
+    let key_file = certs_dir.join(format!("{}.test-key.pem", app_name));
+
+    if cert_file.exists() {
+        let _ = std::fs::remove_file(cert_file);
+    }
+    if key_file.exists() {
+        let _ = std::fs::remove_file(key_file);
+    }
+
+    Ok(())
+}
