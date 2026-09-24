@@ -1,37 +1,10 @@
 use crate::services::nginx::{create_site_config, ensure_hosts_entry, restart_nginx};
 use crate::commands::park::park_folder;
 use crate::services::ssl::generate_certificate;
+use crate::utils::paths::{resolve_app_name, resolve_target_path};
 use crate::store::SitesStore;
 use crate::store::site::Site;
 use colored::*;
-use std::env;
-use std::path::{Path, PathBuf};
-
-
-/// Resolves target directory from optional CLI arg or current working directory.
-fn resolve_target_path(path_arg: Option<String>) -> Result<PathBuf, String> {
-    match path_arg {
-        Some(p) => {
-            let custom_path = PathBuf::from(p);
-            if !custom_path.exists() {
-                return Err(format!("The path '{}' does not exist.", custom_path.display()));
-            }
-            custom_path.canonicalize().map_err(|e| format!("Path resolution failed: {}", e))
-        }
-        None => env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e)),
-    }
-}
-
-/// Resolves app name from optional CLI arg or folder name.
-fn resolve_app_name(name_arg: Option<String>, target_path: &Path) -> Result<String, String> {
-    match name_arg {
-        Some(n) if !n.trim().is_empty() => Ok(n.trim().to_string()),
-        _ => target_path
-            .file_name()
-            .ok_or_else(|| "Invalid target directory name".to_string())
-            .map(|s| s.to_string_lossy().to_string()),
-    }
-}
 
 /// Links a directory to a local `.test` domain.
 pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(), String> {

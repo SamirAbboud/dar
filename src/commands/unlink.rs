@@ -1,32 +1,8 @@
 use crate::services::nginx::{remove_site_config, restart_nginx};
 use crate::services::ssl::remove_certificate;
+use crate::utils::paths::{resolve_app_name, resolve_target_path};
 use crate::store::SitesStore;
 use colored::*;
-use std::env;
-use std::path::{Path, PathBuf};
-
-fn resolve_target_path(path_arg: Option<String>) -> Result<PathBuf, String> {
-    match path_arg {
-        Some(p) => {
-            let custom_path = PathBuf::from(p);
-            if !custom_path.exists() {
-                return Err(format!("The path '{}' does not exist.", custom_path.display()));
-            }
-            custom_path.canonicalize().map_err(|e| format!("Path resolution failed: {}", e))
-        }
-        None => env::current_dir().map_err(|e| format!("Failed to get current directory: {}", e)),
-    }
-}
-
-fn resolve_app_name(name_arg: Option<String>, target_path: &Path) -> Result<String, String> {
-    match name_arg {
-        Some(n) if !n.trim().is_empty() => Ok(n.trim().to_string()),
-        _ => target_path
-            .file_name()
-            .ok_or_else(|| "Invalid target directory name".to_string())
-            .map(|s| s.to_string_lossy().to_string()),
-    }
-}
 
 /// Unlinks a local development site.
 pub fn run(name: Option<String>, path: Option<String>) -> Result<(), String> {
