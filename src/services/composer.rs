@@ -15,7 +15,7 @@ pub fn ensure_composer(dar_dir: &Path) -> Result<(), String> {
     let composer_wrapper = bin_dir.join("composer");
 
     if !composer_phar.exists() {
-        println!(" 📦 Provisioning isolated Composer binary...");
+        println!("📦 Provisioning isolated Composer binary...");
 
         let download_url = "https://getcomposer.org/download/latest-stable/composer.phar";
 

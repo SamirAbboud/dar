@@ -3,6 +3,7 @@ use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+use crate::services::composer::ensure_composer;
 use crate::utils::archive::{fetch_and_extract, find_file_recursive};
 
 enum PhpProvider {
@@ -45,15 +46,93 @@ impl PhpProvider {
     }
 }
 
+/// Normalizes inputs like "php@8.2", "php-8.2", "v8.2" down to "8.2".
+pub fn normalize_php_version(raw_version: &str) -> String {
+    let trimmed = raw_version.trim().to_lowercase();
+    let cleaned = trimmed
+        .strip_prefix("php@")
+        .or_else(|| trimmed.strip_prefix("php-"))
+        .or_else(|| trimmed.strip_prefix("php"))
+        .or_else(|| trimmed.strip_prefix('v'))
+        .unwrap_or(&trimmed);
+
+    cleaned.to_string()
+}
+
+/// Maps shorthand versions ("8.2") to known full semver releases ("8.2.20").
+pub fn resolve_php_version_alias(raw_version: &str) -> String {
+    let clean = normalize_php_version(raw_version);
+    match clean.as_str() {
+        "7.4" => "7.4.33".to_string(),
+        "8.0" => "8.0.30".to_string(),
+        "8.1" => "8.1.30".to_string(),
+        "8.2" => "8.2.26".to_string(),
+        "8.3" => "8.3.11".to_string(),
+        "8.4" => "8.4.1".to_string(),
+        _ => clean, // Full semver like "8.3.11" passes through unchanged
+    }
+}
+
+/// Stops the currently running local PHP-FPM process via PID file.
+pub fn stop_php_fpm(dar_dir: &Path) -> Result<(), String> {
+    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+
+    if pid_file.exists() {
+        if let Ok(pid_str) = fs::read_to_string(&pid_file) {
+            if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                let _ = Command::new("kill")
+                    .arg(pid.to_string())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+        }
+        let _ = fs::remove_file(pid_file);
+    }
+
+    Ok(())
+}
+
+/// Scans `~/.dar/php/versions` and returns (installed_versions, active_version_option).
+pub fn list_installed_php_versions(dar_dir: &Path) -> (Vec<String>, Option<String>) {
+    let versions_dir = dar_dir.join("php").join("versions");
+    let current_symlink = dar_dir.join("php").join("current");
+
+    let mut installed = Vec::new();
+    if let Ok(entries) = fs::read_dir(&versions_dir) {
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                if let Some(name) = entry.file_name().to_str() {
+                    installed.push(name.to_string());
+                }
+            }
+        }
+    }
+    installed.sort();
+
+    // Canonicalize or inspect target filename cleanly
+    let active = if let Ok(target) = fs::read_link(&current_symlink) {
+        target
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|s| s.to_string())
+    } else {
+        None
+    };
+
+    (installed, active)
+}
+
 /// Downloads and sets up an isolated PHP runtime (FPM and CLI) for the specified version,
 /// updating the `~/.dar/php/current` symlink to point to the active version.
-pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), String> {
+pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, String> {
+    let php_version = resolve_php_version_alias(raw_version);
     let versions_dir = dar_dir.join("php").join("versions");
-    let target_version_dir = versions_dir.join(php_version);
+    let target_version_dir = versions_dir.join(&php_version);
     let current_symlink = dar_dir.join("php").join("current");
 
     if !target_version_dir.exists() {
-        println!(" 📦 Provisioning isolated PHP {} runtime...", php_version);
+        println!("📦 Provisioning isolated PHP {} runtime...", php_version);
 
         let src_dir = dar_dir.join("src");
         let providers = [PhpProvider::StaticPhpCli, PhpProvider::ShivamMathur];
@@ -61,14 +140,14 @@ pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), Strin
         let mut cli_folder = None;
 
         for provider in &providers {
-            println!(" 🔍 Attempting download from {}...", provider.name());
+            println!("🔍 Attempting download from {}...", provider.name());
 
             let fpm_res = fetch_and_extract(
                 &src_dir,
                 &format!("PHP {} FPM", php_version),
                 &format!("php-fpm-pkg-{}", php_version),
                 &format!("php-{}-fpm.tar.gz", php_version),
-                &provider.fpm_url(php_version),
+                &provider.fpm_url(&php_version),
             );
 
             let cli_res = fetch_and_extract(
@@ -76,7 +155,7 @@ pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), Strin
                 &format!("PHP {} CLI", php_version),
                 &format!("php-cli-pkg-{}", php_version),
                 &format!("php-{}-cli.tar.gz", php_version),
-                &provider.cli_url(php_version),
+                &provider.cli_url(&php_version),
             );
 
             if let (Ok(fpm), Ok(cli)) = (fpm_res, cli_res) {
@@ -84,7 +163,7 @@ pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), Strin
                 cli_folder = Some(cli);
                 break;
             } else {
-                println!(" ⚠️ Provider {} failed. Trying next...", provider.name());
+                println!("⚠️ Provider {} failed. Trying next...", provider.name());
             }
         }
 
@@ -98,6 +177,9 @@ pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), Strin
         setup_binary_package(&fpm_dir, &cli_dir, &target_version_dir)?;
     }
 
+    // Stop current FPM service before updating symlink
+    stop_php_fpm(dar_dir)?;
+
     // Set current symlink
     if current_symlink.exists() || fs::symlink_metadata(&current_symlink).is_ok() {
         let _ = fs::remove_file(&current_symlink);
@@ -106,7 +188,13 @@ pub fn fetch_isolated_php(dar_dir: &Path, php_version: &str) -> Result<(), Strin
     symlink(&target_version_dir, &current_symlink)
         .map_err(|e| format!("Failed to symlink current PHP version: {}", e))?;
 
-    Ok(())
+    // Ensure Composer wrapper points to the new current PHP binary
+    ensure_composer(dar_dir)?;
+
+    // Start PHP-FPM with the new version
+    ensure_php_fpm_running(dar_dir)?;
+
+    Ok(php_version)
 }
 
 /// Verifies whether the local PHP-FPM process is running via its PID file,

@@ -81,6 +81,21 @@ enum Commands {
         path: Option<String>,
     },
 
+    /// Manage isolated PHP runtimes
+    Php {
+        /// List installed PHP versions
+        #[arg(short, long)]
+        list: bool,
+
+        /// Display the currently active PHP version
+        #[arg(short, long)]
+        current: bool,
+
+        /// Switch or install a specific PHP version (e.g. `dar php -u 8.2`)
+        #[arg(short = 'u', long = "use")]
+        use_version: Option<String>,
+    },
+
     /// List all linked local development sites
     Sites,
 }
@@ -97,6 +112,15 @@ fn main() {
         Commands::Secure { name, path } => commands::secure::run(name, path),
         Commands::Unlink { name, path } => commands::unlink::run(name, path),
         Commands::Unsecure { name, path } => commands::unsecure::run(name, path),
+        Commands::Php { current, use_version, .. } => {
+            if let Some(version) = use_version {
+                commands::php::use_version(version)
+            } else if current {
+                commands::php::current()
+            } else {
+                commands::php::list()
+            }
+        }
         Commands::Sites => commands::sites::run(),
     };
 
