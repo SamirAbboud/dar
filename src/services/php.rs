@@ -2,49 +2,10 @@ use std::fs;
 use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::collections::HashMap;
 
 use crate::services::composer::ensure_composer;
 use crate::utils::archive::{fetch_and_extract, find_file_recursive};
-
-enum PhpProvider {
-    StaticPhpCli,
-    ShivamMathur,
-}
-
-impl PhpProvider {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::StaticPhpCli => "static-php-cli",
-            Self::ShivamMathur => "shivammathur/php-builder",
-        }
-    }
-
-    fn fpm_url(&self, version: &str) -> String {
-        match self {
-            Self::StaticPhpCli => format!(
-                "https://dl.static-php.dev/static-php-cli/common/php-{}-fpm-linux-x86_64.tar.gz",
-                version
-            ),
-            Self::ShivamMathur => format!(
-                "https://github.com/shivammathur/php-builder/releases/download/v{}/php-{}-linux-x86_64.tar.gz",
-                version, version
-            ),
-        }
-    }
-
-    fn cli_url(&self, version: &str) -> String {
-        match self {
-            Self::StaticPhpCli => format!(
-                "https://dl.static-php.dev/static-php-cli/common/php-{}-cli-linux-x86_64.tar.gz",
-                version
-            ),
-            Self::ShivamMathur => format!(
-                "https://github.com/shivammathur/php-builder/releases/download/v{}/php-{}-linux-x86_64.tar.gz",
-                version, version
-            ),
-        }
-    }
-}
 
 /// Normalizes inputs like "php@8.2", "php-8.2", "v8.2" down to "8.2".
 pub fn normalize_php_version(raw_version: &str) -> String {
@@ -59,18 +20,59 @@ pub fn normalize_php_version(raw_version: &str) -> String {
     cleaned.to_string()
 }
 
-/// Maps shorthand versions ("8.2") to known full semver releases ("8.2.20").
+/// Dynamically resolves shorthand ("8.2") to the latest available static-php-cli build on dl.static-php.dev.
 pub fn resolve_php_version_alias(raw_version: &str) -> String {
     let clean = normalize_php_version(raw_version);
-    match clean.as_str() {
-        "7.4" => "7.4.33".to_string(),
-        "8.0" => "8.0.30".to_string(),
-        "8.1" => "8.1.30".to_string(),
-        "8.2" => "8.2.26".to_string(),
-        "8.3" => "8.3.11".to_string(),
-        "8.4" => "8.4.1".to_string(),
-        _ => clean, // Full semver like "8.3.11" passes through unchanged
+
+    if clean.split('.').count() >= 3 {
+        return clean;
     }
+
+    // Query dl.static-php.dev CDN index directly
+    if let Ok(res) = ureq::get("https://dl.static-php.dev/static-php-cli/common/")
+        .header("User-Agent", "dar-cli")
+        .call()
+    {
+        if let Ok(html) = res.into_body().read_to_string() {
+            let prefix = format!("php-{}.", clean);
+            // Store tuples of (patch_number as u32, full_version_string)
+            let mut matches: Vec<(u32, String)> = Vec::new();
+
+            for line in html.lines() {
+                if let Some(start) = line.find(&prefix) {
+                    let rest = &line[start + 4..]; // Skip "php-"
+                    if let Some(end) = rest.find("-cli-linux-x86_64.tar.gz") {
+                        let full_version = &rest[..end]; // e.g. "8.3.11"
+
+                        // Extract the patch version (e.g. "11" from "8.3.11")
+                        if let Some(patch_str) = full_version.split('.').nth(2) {
+                            if let Ok(patch_num) = patch_str.parse::<u32>() {
+                                matches.push((patch_num, full_version.to_string()));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Max by the integer patch number!
+            if let Some((_, latest_version)) = matches.iter().max_by_key(|(patch, _)| patch) {
+                println!("🌐 Resolved PHP {} -> {} via static-php CDN", clean, latest_version);
+                return latest_version.clone();
+            }
+        }
+    }
+
+    // Fallback static map if offline
+    let fallbacks: HashMap<&str, &str> = HashMap::from([
+        ("8.0", "8.0.30"),
+        ("8.1", "8.1.30"),
+        ("8.2", "8.2.32"),
+        ("8.3", "8.3.11"),
+        ("8.4", "8.4.8"),
+        ("8.5", "8.5.8"),
+    ]);
+
+    fallbacks.get(clean.as_str()).unwrap_or(&clean.as_str()).to_string()
 }
 
 /// Stops the currently running local PHP-FPM process via PID file.
@@ -135,44 +137,28 @@ pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, S
         println!("📦 Provisioning isolated PHP {} runtime...", php_version);
 
         let src_dir = dar_dir.join("src");
-        let providers = [PhpProvider::StaticPhpCli, PhpProvider::ShivamMathur];
-        let mut fpm_folder = None;
-        let mut cli_folder = None;
+        let base_url = "https://dl.static-php.dev/static-php-cli/common";
 
-        for provider in &providers {
-            println!("🔍 Attempting download from {}...", provider.name());
+        let fpm_url = format!("{}/php-{}-fpm-linux-x86_64.tar.gz", base_url, php_version);
+        let cli_url = format!("{}/php-{}-cli-linux-x86_64.tar.gz", base_url, php_version);
 
-            let fpm_res = fetch_and_extract(
-                &src_dir,
-                &format!("PHP {} FPM", php_version),
-                &format!("php-fpm-pkg-{}", php_version),
-                &format!("php-{}-fpm.tar.gz", php_version),
-                &provider.fpm_url(&php_version),
-            );
+        let fpm_dir = fetch_and_extract(
+            &src_dir,
+            &format!("PHP {} FPM", php_version),
+            &format!("php-fpm-pkg-{}", php_version),
+            &format!("php-{}-fpm.tar.gz", php_version),
+            &fpm_url,
+        )
+        .map_err(|e| format!("FPM download failed: {}", e))?;
 
-            let cli_res = fetch_and_extract(
-                &src_dir,
-                &format!("PHP {} CLI", php_version),
-                &format!("php-cli-pkg-{}", php_version),
-                &format!("php-{}-cli.tar.gz", php_version),
-                &provider.cli_url(&php_version),
-            );
-
-            if let (Ok(fpm), Ok(cli)) = (fpm_res, cli_res) {
-                fpm_folder = Some(fpm);
-                cli_folder = Some(cli);
-                break;
-            } else {
-                println!("⚠️ Provider {} failed. Trying next...", provider.name());
-            }
-        }
-
-        let fpm_dir = fpm_folder.ok_or_else(|| {
-            format!("Could not download PHP {} FPM binary.", php_version)
-        })?;
-        let cli_dir = cli_folder.ok_or_else(|| {
-            format!("Could not download PHP {} CLI binary.", php_version)
-        })?;
+        let cli_dir = fetch_and_extract(
+            &src_dir,
+            &format!("PHP {} CLI", php_version),
+            &format!("php-cli-pkg-{}", php_version),
+            &format!("php-{}-cli.tar.gz", php_version),
+            &cli_url,
+        )
+        .map_err(|e| format!("CLI download failed: {}", e))?;
 
         setup_binary_package(&fpm_dir, &cli_dir, &target_version_dir)?;
     }
