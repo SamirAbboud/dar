@@ -103,6 +103,33 @@ enum Commands {
         args: Vec<String>,
     },
 
+    /// Manage background infrastructure services
+    Services {
+        /// List available and running service containers
+        #[arg(short, long)]
+        list: bool,
+
+        /// Add and start a new service container
+        #[arg(short, long)]
+        add: Option<String>,
+
+        /// Start a stopped service container
+        #[arg(short = 's', long)]
+        start: Option<String>,
+
+        /// Stop a running service container
+        #[arg(short = 't', long)]
+        stop: Option<String>,
+
+        /// Restart a service container
+        #[arg(short = 'r', long)]
+        restart: Option<String>,
+
+        /// Remove a service container
+        #[arg(short = 'd', long)]
+        remove: Option<String>,
+    },
+
     /// List all linked local development sites
     Sites,
 }
@@ -129,6 +156,28 @@ fn main() {
             }
         }
         Commands::Composer { args } => commands::composer::run(&args),
+        Commands::Services {
+            list: _,
+            add,
+            start,
+            stop,
+            restart,
+            remove,
+        } => {
+            if let Some(svc) = add {
+                commands::services::add(&svc)
+            } else if let Some(svc) = start {
+                commands::services::start(&svc)
+            } else if let Some(svc) = stop {
+                commands::services::stop(&svc)
+            } else if let Some(svc) = restart {
+                commands::services::restart(&svc)
+            } else if let Some(svc) = remove {
+                commands::services::remove(&svc)
+            } else {
+                commands::services::list()
+            }
+        }
         Commands::Sites => commands::sites::run(),
     };
 

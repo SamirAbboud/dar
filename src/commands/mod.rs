@@ -9,3 +9,4 @@ pub mod start;
 pub mod stop;
 pub mod php;
 pub mod composer;
+pub mod services;
