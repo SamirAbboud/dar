@@ -10,14 +10,13 @@ use crate::services::dependencies::{
     ensure_nginx_source, ensure_openssl_source, ensure_pcre2_source, ensure_zlib_source,
 };
 use crate::services::composer::ensure_composer;
+use crate::utils::paths::get_dar_dir;
 
 /// Initializes the ~/.dar directory structure, builds isolated dependencies 
 /// (Nginx, PHP-FPM, Composer), and configures initial environment settings.
 pub fn run() -> Result<(), String> {
     println!("{}", "🚀 Initializing Dar environment setup...".cyan().bold());
-
-    let home_dir = dirs::home_dir().ok_or_else(|| "Could not locate home directory".to_string())?;
-    let dar_dir = home_dir.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     setup_directories(&dar_dir)?;
 

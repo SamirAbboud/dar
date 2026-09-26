@@ -1,6 +1,8 @@
 use std::fs;
 use std::process::{Command, Stdio};
 
+use crate::utils::paths::get_dar_dir;
+
 #[derive(Debug)]
 pub struct ServiceInfo {
     pub name: String,
@@ -27,9 +29,7 @@ pub fn verify_docker() -> Result<(), String> {
 /// Gathers the status of all Dar-managed services (Nginx, PHP-FPM, Docker containers)
 pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
     let mut services = Vec::new();
-
-    let home_dir = dirs::home_dir().ok_or_else(|| "Could not locate home directory".to_string())?;
-    let dar_dir = home_dir.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     // 1. Nginx Status
     let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");

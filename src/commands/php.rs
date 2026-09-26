@@ -1,12 +1,12 @@
 use crate::services::php::{fetch_isolated_php, list_installed_php_versions};
 use crate::utils::table::create_table;
+use crate::utils::paths::get_dar_dir;
 use colored::*;
 use comfy_table::Cell;
 
 /// Lists all locally provisioned PHP versions.
 pub fn list() -> Result<(), String> {
-    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-    let dar_dir = home.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     let (installed, active) = list_installed_php_versions(&dar_dir);
 
@@ -46,8 +46,7 @@ pub fn list() -> Result<(), String> {
 
 /// Switches or provisions the active isolated PHP version.
 pub fn use_version(version: String) -> Result<(), String> {
-    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-    let dar_dir = home.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     println!("\n{}", format!("🐘 Switching to PHP {}...", version.bold()).cyan());
 
@@ -64,8 +63,7 @@ pub fn use_version(version: String) -> Result<(), String> {
 
 /// Displays the currently active PHP version.
 pub fn current() -> Result<(), String> {
-    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-    let dar_dir = home.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     let (_, active) = list_installed_php_versions(&dar_dir);
 

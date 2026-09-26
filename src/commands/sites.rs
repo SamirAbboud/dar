@@ -1,12 +1,12 @@
 use crate::store::SitesStore;
 use crate::utils::table::create_table;
+use crate::utils::paths::get_dar_dir;
 use colored::*;
 use comfy_table::{Attribute, Cell, Color as TableColor};
 
 /// Lists all currently linked local development sites.
 pub fn run() -> Result<(), String> {
-    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-    let dar_dir = home.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     let store = SitesStore::load(&dar_dir)?;
 

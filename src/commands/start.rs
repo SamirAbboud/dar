@@ -2,13 +2,12 @@ use colored::*;
 
 use crate::services::nginx::restart_nginx;
 use crate::services::php::ensure_php_fpm_running;
+use crate::utils::paths::get_dar_dir;
 
 /// Starts the local development services (PHP-FPM and Nginx) if they are not already running.
 pub fn run() -> Result<(), String> {
     println!("{}", "🚀 Starting Dar background services...".cyan().bold());
-
-    let home_dir = dirs::home_dir().ok_or_else(|| "Could not locate home directory".to_string())?;
-    let dar_dir = home_dir.join(".dar");
+    let dar_dir = get_dar_dir()?;
 
     if !dar_dir.exists() {
         return Err("Dar environment not found. Please run 'dar install' first.".to_string());

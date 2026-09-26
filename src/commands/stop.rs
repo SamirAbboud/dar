@@ -1,13 +1,13 @@
 use colored::*;
 use std::fs;
 use std::process::Command;
+use crate::utils::paths::get_dar_dir;
 
 /// Stops active Dar background services (Nginx and PHP-FPM).
 pub fn run() -> Result<(), String> {
     println!("{}", "🛑 Stopping Dar background services...".cyan().bold());
 
-    let home_dir = dirs::home_dir().ok_or_else(|| "Could not locate home directory".to_string())?;
-    let dar_dir = home_dir.join(".dar");
+    let dar_dir = get_dar_dir()?;
     let logs_dir = dar_dir.join("logs");
 
     // 1. Stop Nginx

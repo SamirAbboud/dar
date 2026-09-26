@@ -1,6 +1,12 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
+/// Returns the central `~/.dar` configuration directory.
+pub fn get_dar_dir() -> Result<PathBuf, String> {
+    let home_dir = dirs::home_dir().ok_or_else(|| "Could not locate home directory".to_string())?;
+    Ok(home_dir.join(".dar"))
+}
+
 /// Resolves target directory from an optional CLI path argument or current working directory.
 pub fn resolve_target_path(path_arg: Option<String>) -> Result<PathBuf, String> {
     match path_arg {

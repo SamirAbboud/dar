@@ -1,6 +1,6 @@
 use crate::services::nginx::{create_site_config, restart_nginx};
 use crate::services::ssl::remove_certificate;
-use crate::utils::paths::{resolve_app_name, resolve_target_path};
+use crate::utils::paths::{resolve_app_name, resolve_target_path, get_dar_dir};
 use crate::store::SitesStore;
 use colored::*;
 
@@ -9,8 +9,7 @@ pub fn run(name: Option<String>, path: Option<String>) -> Result<(), String> {
     let target_path = resolve_target_path(path)?;
     let app_name = resolve_app_name(name, &target_path)?;
 
-    let home = dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
-    let dar_dir = home.join(".dar");
+    let dar_dir = get_dar_dir()?;
     let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");
 
     let mut store = SitesStore::load(&dar_dir)?;
