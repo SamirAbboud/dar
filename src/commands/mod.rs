@@ -8,3 +8,4 @@ pub mod unsecure;
 pub mod start;
 pub mod stop;
 pub mod php;
+pub mod composer;

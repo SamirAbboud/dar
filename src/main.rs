@@ -96,6 +96,13 @@ enum Commands {
         use_version: Option<String>,
     },
 
+    /// Execute Composer commands using the active isolated PHP runtime
+    Composer {
+        /// Raw arguments passed directly to composer (e.g. `dar composer require laravel/framework`)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
     /// List all linked local development sites
     Sites,
 }
@@ -121,6 +128,7 @@ fn main() {
                 commands::php::list()
             }
         }
+        Commands::Composer { args } => commands::composer::run(&args),
         Commands::Sites => commands::sites::run(),
     };
 
