@@ -2,7 +2,7 @@ use std::fs;
 use std::process::{Command, Stdio};
 
 use crate::utils::paths::get_dar_dir;
-use crate::services::templates::{ServiceTemplate, get_templates};
+use crate::services::templates::{ServiceTemplate, load_templates};
 
 #[derive(Debug)]
 pub struct ServiceInfo {
@@ -70,15 +70,19 @@ fn create_container(template: &ServiceTemplate, service_dir: &std::path::Path) -
         args.push(format!("{}:{}", host_path.display(), container_path));
     }
 
-    args.push(template.image.to_string());
+    args.push(template.image.clone());
 
-    let status = Command::new("docker")
+    let output = Command::new("docker")
         .args(&args)
-        .status()
+        .output()
         .map_err(|e| format!("Failed to execute docker run: {}", e))?;
 
-    if !status.success() {
-        return Err(format!("Failed to create container '{}'.", container_name));
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to create container '{}': {}",
+            container_name,
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
 
     Ok(())
@@ -176,10 +180,15 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
 pub fn add_service(name: &str) -> Result<(), String> {
     verify_docker()?;
 
-    let templates = get_templates();
+    let dar_dir = get_dar_dir()?;
+    let templates = load_templates(&dar_dir)?;
+
     let template = templates
         .get(name)
-        .ok_or_else(|| format!("Unknown service '{}'. Available templates: mysql, postgres, redis, mailpit, meilisearch", name))?;
+        .ok_or_else(|| {
+            let available: Vec<&str> = templates.keys().map(|s| s.as_str()).collect();
+            format!("Unknown service template '{}'. Available templates: {}", name, available.join(", "))
+        })?;
 
     let container_name = format!("dar--{}", template.key);
 
@@ -191,8 +200,7 @@ pub fn add_service(name: &str) -> Result<(), String> {
     }
 
     // Prepare persistent volume directory
-    let dar_dir = get_dar_dir()?;
-    let service_dir = dar_dir.join("services").join(template.key);
+    let service_dir = dar_dir.join("services").join(&template.key);
     fs::create_dir_all(service_dir.join("data"))
         .map_err(|e| format!("Failed to create service volume directory: {}", e))?;
 

@@ -3,6 +3,8 @@ use std::fs::{self, File};
 use std::path::Path;
 use std::process::Command;
 
+use crate::services::templates::load_templates;
+
 /// Creates the essential `~/.dar` directory hierarchy (bin, nginx, sites, logs, certs, src, php) 
 /// and initializes `parked.txt` if it does not already exist.
 pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
@@ -38,6 +40,9 @@ pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
         fs::write(&sites_store, "{}")
             .map_err(|e| format!("Failed to create sites store: {}", e))?;
     }
+
+    // Ensure templates.toml is populated with default service configurations
+    load_templates(dar_dir)?;
 
     Ok(())
 }
