@@ -12,7 +12,7 @@ pub fn list() -> Result<(), String> {
         return Ok(());
     }
 
-    let mut table = create_table(&["Service", "Type", "Status"]);
+    let mut table = create_table(&["Service", "Type", "Port", "Status"]);
 
     for svc in &services {
         let status_badge = if svc.is_active {
@@ -26,6 +26,7 @@ pub fn list() -> Result<(), String> {
         table.add_row(vec![
             Cell::new(&svc.name).add_attribute(Attribute::Bold),
             Cell::new(&svc.service_type).fg(TableColor::Cyan),
+            Cell::new(&svc.port).fg(TableColor::Yellow),
             status_badge,
         ]);
     }

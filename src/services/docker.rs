@@ -8,6 +8,7 @@ use crate::services::templates::{ServiceTemplate, load_templates};
 pub struct ServiceInfo {
     pub name: String,
     pub service_type: String,
+    pub port: String,
     pub status: String,
     pub is_active: bool,
 }
@@ -109,6 +110,7 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
     services.push(ServiceInfo {
         name: "nginx".to_string(),
         service_type: "Nginx Web Server".to_string(),
+        port: "80, 443".to_string(),
         status: if nginx_active { "active".to_string() } else { "stopped".to_string() },
         is_active: nginx_active,
     });
@@ -139,6 +141,7 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
     services.push(ServiceInfo {
         name: "php-fpm".to_string(),
         service_type: "PHP Runtime (FPM)".to_string(),
+        port: "unix socket".to_string(),
         status: if php_active { "active".to_string() } else { "stopped".to_string() },
         is_active: php_active,
     });
@@ -152,7 +155,7 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
                 "--filter",
                 "name=dar--",
                 "--format",
-                "{{.Names}}\t{{.Image}}\t{{.Status}}",
+                "{{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}",
             ])
             .output();
 
@@ -160,19 +163,50 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
             let stdout = String::from_utf8_lossy(&out.stdout);
             for line in stdout.lines() {
                 let parts: Vec<&str> = line.split('\t').collect();
-                if parts.len() == 3 {
-                    let is_running = parts[2].starts_with("Up");
+                if parts.len() == 4 {
+                    let is_running = parts[3].starts_with("Up");
+
+                    // Parse full port mapping (e.g., "0.0.0.0:6380->6379/tcp, :::6380->6379/tcp" -> "6380:6379")
+                    let raw_ports = parts[2];
+                    let formatted_port = if raw_ports.is_empty() {
+                        "-".to_string()
+                    } else {
+                        let mut mappings = Vec::new();
+                        // Split on comma for containers mapping multiple ports
+                        for mapping in raw_ports.split(',') {
+                            let mapping = mapping.trim();
+                            if let Some(arrow_idx) = mapping.find("->") {
+                                let host_part = &mapping[..arrow_idx];
+                                let container_part = &mapping[arrow_idx + 2..];
+
+                                let host_port = host_part.rsplit(':').next().unwrap_or(host_part);
+                                let container_port = container_part.split('/').next().unwrap_or(container_part);
+
+                                let pair = format!("{}:{}", host_port, container_port);
+                                if !mappings.contains(&pair) {
+                                    mappings.push(pair);
+                                }
+                            }
+                        }
+
+                        if mappings.is_empty() {
+                            raw_ports.to_string()
+                        } else {
+                            mappings.join(", ")
+                        }
+                    };
+
                     services.push(ServiceInfo {
                         name: parts[0].to_string(),
                         service_type: format!("Docker ({})", parts[1]),
-                        status: parts[2].to_string(),
+                        port: formatted_port,
+                        status: parts[3].to_string(),
                         is_active: is_running,
                     });
                 }
             }
         }
     }
-
     Ok(services)
 }
 
