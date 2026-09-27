@@ -16,6 +16,7 @@ pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
         dar_dir.join("src"),
         dar_dir.join("php"),
         dar_dir.join("php").join("versions"),
+        dar_dir.join("services"),
     ];
 
     for dir in &dirs {

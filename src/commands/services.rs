@@ -16,7 +16,7 @@ pub fn list() -> Result<(), String> {
 
     for svc in &services {
         let status_badge = if svc.is_active {
-            Cell::new(&format!("✓ {}", svc.status))
+            Cell::new(format!("✓ {}", svc.status))
                 .fg(TableColor::Green)
                 .add_attribute(Attribute::Bold)
         } else {
@@ -37,7 +37,7 @@ pub fn list() -> Result<(), String> {
 }
 
 pub fn add(name: &str) -> Result<(), String> {
-    docker::add(name)
+    docker::add_service(name)
 }
 
 pub fn start(name: &str) -> Result<(), String> {
