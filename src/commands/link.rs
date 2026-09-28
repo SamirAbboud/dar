@@ -1,4 +1,4 @@
-use crate::services::nginx::{create_site_config, ensure_hosts_entry, restart_nginx};
+use crate::services::nginx::{create_site_config, ensure_hosts_entry, restart as restart_nginx};
 use crate::commands::park::park_folder;
 use crate::services::ssl::generate_certificate;
 use crate::utils::paths::{resolve_app_name, resolve_target_path, get_dar_dir};
@@ -12,7 +12,6 @@ pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(
     let app_name = resolve_app_name(name, &target_path)?;
 
     let dar_dir = get_dar_dir()?;
-    let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");
     let mkcert_bin = dar_dir.join("bin").join("mkcert");
 
     // Load store
@@ -80,7 +79,7 @@ pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(
     }
 
     // 6. Reload Nginx
-    restart_nginx(&nginx_bin, &dar_dir)?;
+    restart_nginx(&dar_dir)?;
 
     let protocol = if secure { "https" } else { "http" };
     let action_msg = if existing_site.is_some() && secure {

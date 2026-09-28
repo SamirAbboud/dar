@@ -24,12 +24,6 @@ enum Commands {
     /// Install Dar environment (nginx include, folders, PHP-FPM)
     Install,
 
-    /// Start background services (Nginx & PHP-FPM)
-    Start,
-
-    /// Stop active background services
-    Stop,
-
     /// List all parked development directories
     Parked,
 
@@ -113,17 +107,17 @@ enum Commands {
         #[arg(short, long)]
         add: Option<String>,
 
-        /// Start a stopped service container
-        #[arg(short = 's', long)]
-        start: Option<String>,
+        /// Start all core services or a specific service container
+        #[arg(short = 's', long, num_args(0..=1), default_missing_value = "")]
+        start: Option<Option<String>>,
 
-        /// Stop a running service container
-        #[arg(short = 't', long)]
-        stop: Option<String>,
+        /// Stop all core services or a specific running service container
+        #[arg(short = 't', long, num_args(0..=1), default_missing_value = "")]
+        stop: Option<Option<String>>,
 
-        /// Restart a service container
-        #[arg(short = 'r', long)]
-        restart: Option<String>,
+        /// Restart all core services or a specific service container
+        #[arg(short = 'r', long, num_args(0..=1), default_missing_value = "")]
+        restart: Option<Option<String>>,
 
         /// Remove a service container
         #[arg(short = 'd', long)]
@@ -139,8 +133,6 @@ fn main() {
 
     let result = match cli.command {
         Commands::Install => commands::install::run(),
-        Commands::Start => commands::start::run(),
-        Commands::Stop => commands::stop::run(),
         Commands::Parked => commands::park::get_parked_folders(),
         Commands::Link { name, path, secure } => commands::link::run(name, path, secure),
         Commands::Secure { name, path } => commands::secure::run(name, path),
@@ -166,12 +158,15 @@ fn main() {
         } => {
             if let Some(svc) = add {
                 commands::services::add(&svc)
-            } else if let Some(svc) = start {
-                commands::services::start(&svc)
-            } else if let Some(svc) = stop {
-                commands::services::stop(&svc)
-            } else if let Some(svc) = restart {
-                commands::services::restart(&svc)
+            } else if let Some(svc_opt) = start {
+                let name = svc_opt.as_deref().filter(|s| !s.is_empty());
+                commands::services::start(name)
+            } else if let Some(svc_opt) = stop {
+                let name = svc_opt.as_deref().filter(|s| !s.is_empty());
+                commands::services::stop(name)
+            } else if let Some(svc_opt) = restart {
+                let name = svc_opt.as_deref().filter(|s| !s.is_empty());
+                commands::services::restart(name)
             } else if let Some(svc) = remove {
                 commands::services::remove(&svc)
             } else {

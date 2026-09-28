@@ -1,4 +1,4 @@
-use crate::services::nginx::{remove_site_config, restart_nginx};
+use crate::services::nginx::{remove_site_config, restart as restart_nginx};
 use crate::services::ssl::remove_certificate;
 use crate::utils::paths::{resolve_app_name, resolve_target_path, get_dar_dir};
 use crate::store::SitesStore;
@@ -8,10 +8,7 @@ use colored::*;
 pub fn run(name: Option<String>, path: Option<String>) -> Result<(), String> {
     let target_path = resolve_target_path(path)?;
     let app_name = resolve_app_name(name, &target_path)?;
-
     let dar_dir = get_dar_dir()?;
-    let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");
-
     let mut store = SitesStore::load(&dar_dir)?;
 
     if !store.sites.contains_key(&app_name) {
@@ -33,7 +30,7 @@ pub fn run(name: Option<String>, path: Option<String>) -> Result<(), String> {
     store.remove(&app_name)?;
 
     // 4. Reload Nginx
-    restart_nginx(&nginx_bin, &dar_dir)?;
+    restart_nginx(&dar_dir)?;
 
     println!(
         "\n{} Unlinked site: {}\n",

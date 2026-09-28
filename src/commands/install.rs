@@ -1,8 +1,8 @@
 use colored::*;
 
 use crate::config::load_or_create_config;
-use crate::services::nginx::{build_and_install_nginx, create_default_nginx_config, restart_nginx, set_nginx_capabilities};
-use crate::services::php::{ensure_php_fpm_running, fetch_isolated_php};
+use crate::services::nginx::{build_and_install_nginx, create_default_nginx_config, set_nginx_capabilities, restart as restart_nginx};
+use crate::services::php::fetch_isolated_php;
 use crate::services::ssl::ensure_mkcert;
 use crate::utils::system::setup_directories;
 
@@ -49,8 +49,7 @@ pub fn run() -> Result<(), String> {
     fetch_isolated_php(&dar_dir, &cfg.default_php)?;
     ensure_composer(&dar_dir)?;
     create_default_nginx_config(&dar_dir)?;
-    ensure_php_fpm_running(&dar_dir)?;
-    restart_nginx(&nginx_bin, &dar_dir)?;
+    restart_nginx(&dar_dir)?;
 
     println!(
         "\n{}",

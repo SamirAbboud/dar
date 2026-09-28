@@ -3,6 +3,7 @@ use std::os::unix::fs::symlink;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::collections::HashMap;
+use colored::*;
 
 use crate::services::composer::ensure_composer;
 use crate::utils::archive::{fetch_and_extract, find_file_recursive};
@@ -75,26 +76,6 @@ pub fn resolve_php_version_alias(raw_version: &str) -> String {
     fallbacks.get(clean.as_str()).unwrap_or(&clean.as_str()).to_string()
 }
 
-/// Stops the currently running local PHP-FPM process via PID file.
-pub fn stop_php_fpm(dar_dir: &Path) -> Result<(), String> {
-    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
-
-    if pid_file.exists() {
-        if let Ok(pid_str) = fs::read_to_string(&pid_file) {
-            if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                let _ = Command::new("kill")
-                    .arg(pid.to_string())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status();
-            }
-        }
-        let _ = fs::remove_file(pid_file);
-    }
-
-    Ok(())
-}
-
 /// Scans `~/.dar/php/versions` and returns (installed_versions, active_version_option).
 pub fn list_installed_php_versions(dar_dir: &Path) -> (Vec<String>, Option<String>) {
     let versions_dir = dar_dir.join("php").join("versions");
@@ -164,7 +145,7 @@ pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, S
     }
 
     // Stop current FPM service before updating symlink
-    stop_php_fpm(dar_dir)?;
+    stop(dar_dir)?;
 
     // Set current symlink
     if current_symlink.exists() || fs::symlink_metadata(&current_symlink).is_ok() {
@@ -178,72 +159,9 @@ pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, S
     ensure_composer(dar_dir)?;
 
     // Start PHP-FPM with the new version
-    ensure_php_fpm_running(dar_dir)?;
+    start(dar_dir)?;
 
     Ok(php_version)
-}
-
-/// Verifies whether the local PHP-FPM process is running via its PID file,
-/// starting a new daemonized instance with custom configuration if inactive.
-pub fn ensure_php_fpm_running(dar_dir: &Path) -> Result<(), String> {
-    let conf_path = create_default_php_fpm_config(dar_dir)?;
-    let local_php_fpm = dar_dir
-        .join("php")
-        .join("current")
-        .join("sbin")
-        .join("php-fpm");
-
-    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
-
-    // Check if PID file exists and process is active
-    let is_running = if pid_file.exists() {
-        if let Ok(pid_str) = fs::read_to_string(&pid_file) {
-            if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                Command::new("kill")
-                    .arg("-0")
-                    .arg(pid.to_string())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()
-                    .map(|s| s.success())
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    };
-
-    if !is_running {
-        println!("🐘 Starting local PHP-FPM service...");
-
-        if !local_php_fpm.exists() {
-            return Err(format!(
-                "Local PHP-FPM binary not found at {}",
-                local_php_fpm.display()
-            ));
-        }
-
-        let status = Command::new(&local_php_fpm)
-            .arg("-y")
-            .arg(&conf_path)
-            .arg("-D")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map_err(|e| format!("Failed to start isolated php-fpm: {}", e))?;
-
-        if !status.success() {
-            return Err("PHP-FPM failed to start.".to_string());
-        }
-    } else {
-        println!("🐘 Local PHP-FPM is already running.");
-    }
-
-    Ok(())
 }
 
 /// Generates the global `php-fpm.conf` file in `~/.dar/php/`, configuring socket listening,
@@ -286,6 +204,100 @@ php_admin_value[php_ini] = {}
         .map_err(|e| format!("Failed to write php-fpm.conf: {}", e))?;
 
     Ok(conf_path)
+}
+
+/// Checks if PHP-FPM process is running via sending signal 0 to its PID.
+pub fn is_fpm_running(dar_dir: &Path) -> bool {
+    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+    if !pid_file.exists() {
+        return false;
+    }
+
+    if let Ok(pid_str) = fs::read_to_string(&pid_file) {
+        if let Ok(pid) = pid_str.trim().parse::<i32>() {
+            return Command::new("kill")
+                .arg("-0")
+                .arg(pid.to_string())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+        }
+    }
+    false
+}
+
+/// Starts PHP-FPM if it's not already running.
+pub fn start(dar_dir: &Path) -> Result<(), String> {
+    if is_fpm_running(dar_dir) {
+        println!("{}", "🐘 PHP-FPM is already running.".yellow());
+        return Ok(());
+    }
+
+    let local_php_fpm = dar_dir
+        .join("php")
+        .join("current")
+        .join("sbin")
+        .join("php-fpm");
+
+    if !local_php_fpm.exists() {
+        return Err(format!(
+            "Local PHP-FPM binary not found at {}. Please run 'dar install' first.",
+            local_php_fpm.display()
+        ));
+    }
+
+    let conf_path = create_default_php_fpm_config(dar_dir)?;
+
+    println!("{}", "🚀 Starting PHP-FPM service...".cyan());
+
+    let status = Command::new(&local_php_fpm)
+        .arg("-y")
+        .arg(&conf_path)
+        .arg("-D")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| format!("Failed to start php-fpm: {}", e))?;
+
+    if !status.success() {
+        return Err("PHP-FPM failed to start.".to_string());
+    }
+
+    println!("{}", "✨ PHP-FPM started successfully!".green());
+    Ok(())
+}
+
+/// Stops active PHP-FPM service using its PID file.
+pub fn stop(dar_dir: &Path) -> Result<(), String> {
+    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+
+    if pid_file.exists() {
+        if let Ok(pid_str) = fs::read_to_string(&pid_file) {
+            if let Ok(pid) = pid_str.trim().parse::<i32>() {
+                println!("{}", "🛑 Stopping PHP-FPM service...".cyan());
+                let _ = Command::new("kill")
+                    .arg(pid.to_string())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status();
+            }
+        }
+        let _ = fs::remove_file(&pid_file);
+        println!("{}", "✨ PHP-FPM stopped successfully.".green());
+    } else {
+        println!("{}", "🐘 PHP-FPM is not running.".yellow());
+    }
+
+    Ok(())
+}
+
+/// Restarts PHP-FPM service by stopping any existing instance and starting a fresh process.
+pub fn restart(dar_dir: &Path) -> Result<(), String> {
+    println!("{}", "🔄 Restarting PHP-FPM service...".cyan());
+    stop(dar_dir)?;
+    start(dar_dir)
 }
 
 /// Extracts and copies downloaded PHP FPM and CLI binaries into standard `sbin/` and `bin/` 
