@@ -78,6 +78,10 @@ fn create_container(template: &ServiceTemplate, service_dir: &std::path::Path) -
 
     args.push(template.image.clone());
 
+    if let Some(cmd) = &template.command {
+        args.extend(cmd.clone());
+    }
+
     let output = Command::new("docker")
         .args(&args)
         .output()
