@@ -11,9 +11,11 @@ pub struct ServiceTemplate {
     pub default_port: u16,
     pub container_port: u16,
     #[serde(default)]
+    pub additional_ports: HashMap<u16, u16>,
+    #[serde(default)]
     pub env_vars: HashMap<String, String>,
     #[serde(default)]
-    pub volume_mounts: HashMap<String, String>, // relative host dir -> container path
+    pub volume_mounts: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +35,7 @@ impl Default for ServicesConfig {
                 image: "mysql:8.0".to_string(),
                 default_port: 3306,
                 container_port: 3306,
+                additional_ports: HashMap::new(),
                 env_vars: HashMap::from([
                     ("MYSQL_ROOT_PASSWORD".to_string(), "root".to_string()),
                     ("MYSQL_ALLOW_EMPTY_PASSWORD".to_string(), "yes".to_string()),
@@ -49,6 +52,7 @@ impl Default for ServicesConfig {
                 image: "postgres:16-alpine".to_string(),
                 default_port: 5432,
                 container_port: 5432,
+                additional_ports: HashMap::new(),
                 env_vars: HashMap::from([("POSTGRES_PASSWORD".to_string(), "postgres".to_string())]),
                 volume_mounts: HashMap::from([("data".to_string(), "/var/lib/postgresql/data".to_string())]),
             },
@@ -62,6 +66,7 @@ impl Default for ServicesConfig {
                 image: "redis:7-alpine".to_string(),
                 default_port: 6379,
                 container_port: 6379,
+                additional_ports: HashMap::new(),
                 env_vars: HashMap::new(),
                 volume_mounts: HashMap::from([("data".to_string(), "/data".to_string())]),
             },
@@ -75,6 +80,7 @@ impl Default for ServicesConfig {
                 image: "axllent/mailpit:latest".to_string(),
                 default_port: 8025,
                 container_port: 8025,
+                additional_ports: HashMap::from([(1025, 1025)]),
                 env_vars: HashMap::new(),
                 volume_mounts: HashMap::from([("data".to_string(), "/data".to_string())]),
             },
@@ -88,6 +94,7 @@ impl Default for ServicesConfig {
                 image: "getmeili/meilisearch:v1.6".to_string(),
                 default_port: 7700,
                 container_port: 7700,
+                additional_ports: HashMap::new(),
                 env_vars: HashMap::from([("MEILI_MASTER_KEY".to_string(), "masterKey".to_string())]),
                 volume_mounts: HashMap::from([("data".to_string(), "/meili_data".to_string())]),
             },

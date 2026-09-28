@@ -60,6 +60,11 @@ fn create_container(template: &ServiceTemplate, service_dir: &std::path::Path) -
         format!("{}:{}", template.default_port, template.container_port),
     ];
 
+    for (host_p, container_p) in &template.additional_ports {
+        args.push("-p".to_string());
+        args.push(format!("{}:{}", host_p, container_p));
+    }
+
     for (k, v) in &template.env_vars {
         args.push("-e".to_string());
         args.push(format!("{}={}", k, v));
