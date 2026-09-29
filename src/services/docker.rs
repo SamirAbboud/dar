@@ -1,8 +1,9 @@
 use std::fs;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 use crate::utils::paths::get_dar_dir;
 use crate::services::templates::{ServiceTemplate, load_templates};
+use crate::services::{nginx::is_nginx_running, php::is_fpm_running};
 
 #[derive(Debug)]
 pub struct ServiceInfo {
@@ -98,62 +99,121 @@ fn create_container(template: &ServiceTemplate, service_dir: &std::path::Path) -
     Ok(())
 }
 
-/// Gathers the status of all Dar-managed services (Nginx, PHP-FPM, Docker containers)
-pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
-    let mut services = Vec::new();
-    let dar_dir = get_dar_dir()?;
+/// Builds a `ServiceInfo` summary for the local Nginx web server instance using PID check.
+fn get_nginx_service_info(dar_dir: &std::path::Path) -> ServiceInfo {
+    let is_active = is_nginx_running(dar_dir);
 
-    // 1. Nginx Status
-    let nginx_bin = dar_dir.join("nginx").join("sbin").join("nginx");
-    let nginx_active = if nginx_bin.exists() {
-        Command::new("pgrep")
-            .arg("-f")
-            .arg(nginx_bin.to_string_lossy().as_ref())
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-    } else {
-        false
-    };
-
-    services.push(ServiceInfo {
+    ServiceInfo {
         name: "nginx".to_string(),
         service_type: "Nginx Web Server".to_string(),
         port: "80, 443".to_string(),
-        status: if nginx_active { "active".to_string() } else { "stopped".to_string() },
-        is_active: nginx_active,
-    });
+        status: if is_active { "active".to_string() } else { "stopped".to_string() },
+        is_active,
+    }
+}
 
-    // 2. Active PHP-FPM Status
-    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
-    let php_active = if pid_file.exists() {
-        if let Ok(pid_str) = fs::read_to_string(&pid_file) {
-            if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                Command::new("kill")
-                    .arg("-0")
-                    .arg(pid.to_string())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()
-                    .map(|s| s.success())
-                    .unwrap_or(false)
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    };
+/// Builds a `ServiceInfo` summary for the local PHP-FPM runtime instance using PID check.
+fn get_php_fpm_service_info(dar_dir: &std::path::Path) -> ServiceInfo {
+    let is_active = is_fpm_running(dar_dir);
 
-    services.push(ServiceInfo {
+    ServiceInfo {
         name: "php-fpm".to_string(),
         service_type: "PHP Runtime (FPM)".to_string(),
         port: "unix socket".to_string(),
-        status: if php_active { "active".to_string() } else { "stopped".to_string() },
-        is_active: php_active,
-    });
+        status: if is_active { "active".to_string() } else { "stopped".to_string() },
+        is_active,
+    }
+}
+
+/// Formats raw Docker status string into human-readable states.
+fn format_container_status(raw_status: &str, is_running: bool) -> String {
+    if is_running {
+        "running".to_string()
+    } else if raw_status.starts_with("Exited (0)")
+        || raw_status.starts_with("Exited (137)")
+        || raw_status.starts_with("Exited (143)")
+    {
+        "stopped".to_string()
+    } else if raw_status.starts_with("Exited") {
+        raw_status.replace("Exited", "failed")
+    } else {
+        raw_status.to_string()
+    }
+}
+
+/// Extracts unique "host:container" port pairs from live Docker `ps` output.
+fn parse_live_ports(raw_ports: &str) -> Vec<String> {
+    if raw_ports.is_empty() {
+        return Vec::new();
+    }
+
+    let mut mappings = Vec::new();
+    for mapping in raw_ports.split(',').map(str::trim) {
+        if let Some((host_part, container_part)) = mapping.split_once("->") {
+            let host_port = host_part.rsplit(':').next().unwrap_or(host_part);
+            let container_port = container_part.split('/').next().unwrap_or(container_part);
+
+            let pair = format!("{host_port}:{container_port}");
+            if !mappings.contains(&pair) {
+                mappings.push(pair);
+            }
+        }
+    }
+    mappings
+}
+
+/// Constructs port string from `templates.toml` when the container is inactive.
+fn format_fallback_ports(tmpl: &ServiceTemplate) -> String {
+    let mut ports = vec![tmpl.default_port.to_string()];
+    for host_p in tmpl.additional_ports.keys() {
+        ports.push(host_p.to_string());
+    }
+    ports.join(", ")
+}
+
+/// Parses raw tab-delimited stdout from `docker ps` into a structured `ServiceInfo` record.
+fn parse_docker_service_info(
+    line: &str,
+    templates: &std::collections::HashMap<String, ServiceTemplate>,
+) -> Option<ServiceInfo> {
+    let [container_name, image, raw_ports, raw_status] = match line.split('\t').collect::<Vec<_>>()[..] {
+        [c, i, p, s] => [c, i, p, s],
+        _ => return None,
+    };
+
+    let service_key = container_name.trim_start_matches("dar--");
+    let is_running = raw_status.starts_with("Up");
+    let clean_status = format_container_status(raw_status, is_running);
+
+    let live_mappings = parse_live_ports(raw_ports);
+    let formatted_port = if !live_mappings.is_empty() {
+        live_mappings.join(", ")
+    } else if let Some(tmpl) = templates.get(service_key) {
+        format_fallback_ports(tmpl)
+    } else {
+        "-".to_string()
+    };
+
+    Some(ServiceInfo {
+        name: container_name.to_string(),
+        service_type: format!("Docker ({image})"),
+        port: formatted_port,
+        status: clean_status,
+        is_active: is_running,
+    })
+}
+
+/// Gathers state and port configurations for all Dar environment services (Nginx, PHP-FPM, and Docker containers).
+pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
+    let mut services = Vec::new();
+    let dar_dir = get_dar_dir()?;
+    let templates = load_templates(&dar_dir).unwrap_or_default();
+
+    // 1. Nginx Status
+    services.push(get_nginx_service_info(&dar_dir));
+
+    // 2. Active PHP-FPM Status
+    services.push(get_php_fpm_service_info(&dar_dir));
 
     // 3. Docker Containers (dar--*)
     if verify_docker().is_ok() {
@@ -171,51 +231,13 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
         if let Ok(out) = output {
             let stdout = String::from_utf8_lossy(&out.stdout);
             for line in stdout.lines() {
-                let parts: Vec<&str> = line.split('\t').collect();
-                if parts.len() == 4 {
-                    let is_running = parts[3].starts_with("Up");
-
-                    // Parse full port mapping (e.g., "0.0.0.0:6380->6379/tcp, :::6380->6379/tcp" -> "6380:6379")
-                    let raw_ports = parts[2];
-                    let formatted_port = if raw_ports.is_empty() {
-                        "-".to_string()
-                    } else {
-                        let mut mappings = Vec::new();
-                        // Split on comma for containers mapping multiple ports
-                        for mapping in raw_ports.split(',') {
-                            let mapping = mapping.trim();
-                            if let Some(arrow_idx) = mapping.find("->") {
-                                let host_part = &mapping[..arrow_idx];
-                                let container_part = &mapping[arrow_idx + 2..];
-
-                                let host_port = host_part.rsplit(':').next().unwrap_or(host_part);
-                                let container_port = container_part.split('/').next().unwrap_or(container_part);
-
-                                let pair = format!("{}:{}", host_port, container_port);
-                                if !mappings.contains(&pair) {
-                                    mappings.push(pair);
-                                }
-                            }
-                        }
-
-                        if mappings.is_empty() {
-                            raw_ports.to_string()
-                        } else {
-                            mappings.join(", ")
-                        }
-                    };
-
-                    services.push(ServiceInfo {
-                        name: parts[0].to_string(),
-                        service_type: format!("Docker ({})", parts[1]),
-                        port: formatted_port,
-                        status: parts[3].to_string(),
-                        is_active: is_running,
-                    });
+                if let Some(info) = parse_docker_service_info(line, &templates) {
+                    services.push(info);
                 }
             }
         }
     }
+
     Ok(services)
 }
 
