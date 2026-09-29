@@ -1,5 +1,5 @@
 use std::fs;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::utils::paths::get_dar_dir;
 use crate::services::templates::{ServiceTemplate, load_templates};
@@ -29,6 +29,34 @@ fn verify_docker() -> Result<(), String> {
     Ok(())
 }
 
+/// Ensures that the dedicated `dar-net` Docker bridge network exists.
+fn ensure_docker_network() -> Result<(), String> {
+    let check = Command::new("docker")
+        .args(["network", "inspect", "dar-net"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+
+    // If 'dar-net' doesn't exist, create it
+    if let Ok(status) = check {
+        if !status.success() {
+            let output = Command::new("docker")
+                .args(["network", "create", "dar-net"])
+                .output()
+                .map_err(|e| format!("Failed to execute docker network create: {}", e))?;
+
+            if !output.status.success() {
+                return Err(format!(
+                    "Failed to create docker network 'dar-net': {}",
+                    String::from_utf8_lossy(&output.stderr)
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Checks if a container with the given exact name already exists in Docker (running or stopped).
 fn container_exists(container_name: &str) -> Result<bool, String> {
     let check_output = Command::new("docker")
@@ -48,6 +76,8 @@ fn container_exists(container_name: &str) -> Result<bool, String> {
 
 /// Provisions a new container instance from a `ServiceTemplate`.
 fn create_container(template: &ServiceTemplate, service_dir: &std::path::Path) -> Result<(), String> {
+    ensure_docker_network()?;
+
     let container_name = format!("dar--{}", template.key);
 
     let mut args = vec![
@@ -55,6 +85,8 @@ fn create_container(template: &ServiceTemplate, service_dir: &std::path::Path) -
         "-d".to_string(),
         "--name".to_string(),
         container_name.clone(),
+        "--network".to_string(),
+        "dar-net".to_string(),
         "--restart".to_string(),
         "unless-stopped".to_string(),
         "-p".to_string(),
