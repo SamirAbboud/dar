@@ -88,6 +88,10 @@ enum Commands {
         /// Switch or install a specific PHP version (e.g. `dar php -u 8.2`)
         #[arg(short = 'u', long = "use")]
         use_version: Option<String>,
+
+        /// Raw arguments passed directly to the PHP binary (e.g. `dar php -v` or `dar php -S ...`)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
     },
 
     /// Execute Composer commands using the active isolated PHP runtime
@@ -138,13 +142,24 @@ fn main() {
         Commands::Secure { name, path } => commands::secure::run(name, path),
         Commands::Unlink { name, path } => commands::unlink::run(name, path),
         Commands::Unsecure { name, path } => commands::unsecure::run(name, path),
-        Commands::Php { current, use_version, .. } => {
+        Commands::Php {
+            list,
+            current,
+            use_version,
+            args,
+        } => {
             if let Some(version) = use_version {
                 commands::php::use_version(version)
+            } else if list {
+                commands::php::list()
             } else if current {
                 commands::php::current()
+            } else if !args.is_empty() {
+                // Execute raw php binary with forwarded CLI arguments
+                commands::php::passthrough(&args)
             } else {
-                commands::php::list()
+                // Fallback when running plain `dar php`
+                commands::php::current()
             }
         }
         Commands::Composer { args } => commands::composer::run(&args),

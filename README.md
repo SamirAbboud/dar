@@ -183,8 +183,8 @@ dar unsecure --name custom-name --path /path/to/project
 Manages isolated PHP runtimes, lists installed versions, and switches the active PHP version used by `dar`.
 
 ```bash
-# TODO: Implement default action (e.g., interactive prompt or show current version) when run without flags
-# dar php
+# Show the currently active PHP version (default when run without arguments)
+dar php
 
 # List all installed PHP versions
 dar php --list
@@ -195,13 +195,21 @@ dar php --current
 # Switch to or install a specific PHP version (e.g. 8.2)
 dar php -u 8.2
 dar php --use 8.3
+
+# Pass arguments directly to the active PHP CLI binary
+dar php -v
+dar php -m
+dar php -r 'echo "Hello from isolated PHP!";'
+dar php -S localhost:8000 -t public/
 ```
 
-| Flag | Short | Description |
+| Flag / Argument | Short | Description |
 | :--- | :--- | :--- |
-| `--list` | `-l` | List all installed PHP versions |
-| `--current` | `-c` | Show the currently active PHP version |
-| `--use` | `-u` | Switch to or install a specific PHP version (e.g. `8.2`) |
+| *(none)* | *(none)* | Display the currently active PHP version |
+| `--list` | `-l` | List all installed PHP versions and their installation paths |
+| `--current` | `-c` | Display the currently active PHP version |
+| `--use <VER>` | `-u <VER>` | Switch to or provision a specific PHP version (e.g. `8.3`, `8.4`) |
+| `<ARGS>...` | *(none)* | Pass raw CLI flags/arguments directly to the active `php` binary |
 
 
 ### `composer`

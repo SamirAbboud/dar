@@ -300,6 +300,31 @@ pub fn restart(dar_dir: &Path) -> Result<(), String> {
     start(dar_dir)
 }
 
+/// Executes raw CLI arguments with the currently active isolated PHP binary.
+pub fn execute_isolated_php(dar_dir: &Path, args: &[String]) -> Result<(), String> {
+    let php_bin = dar_dir.join("php").join("current").join("bin").join("php");
+
+    if !php_bin.exists() {
+        return Err(format!(
+            "No active PHP binary found at `{}`. Run `dar php -u <version>` first.",
+            php_bin.display()
+        ));
+    }
+
+    let status = Command::new(&php_bin)
+        .args(args)
+        .status()
+        .map_err(|e| format!("Failed to execute php: {}", e))?;
+
+    if !status.success() {
+        if let Some(code) = status.code() {
+            std::process::exit(code);
+        }
+    }
+
+    Ok(())
+}
+
 /// Extracts and copies downloaded PHP FPM and CLI binaries into standard `sbin/` and `bin/` 
 /// directories inside the versioned installation folder, ensuring `0755` execution per
 fn setup_binary_package(

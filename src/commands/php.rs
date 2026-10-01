@@ -1,4 +1,4 @@
-use crate::services::php::{fetch_isolated_php, list_installed_php_versions};
+use crate::services::php::{execute_isolated_php, fetch_isolated_php, list_installed_php_versions};
 use crate::utils::table::create_table;
 use crate::utils::paths::get_dar_dir;
 use colored::*;
@@ -81,4 +81,10 @@ pub fn current() -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Executes raw CLI arguments against the currently active isolated PHP binary.
+pub fn passthrough(args: &[String]) -> Result<(), String> {
+    let dar_dir = get_dar_dir()?;
+    execute_isolated_php(&dar_dir, args)
 }
