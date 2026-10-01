@@ -325,7 +325,7 @@ default_port = 3032
 container_port = 3000
 additional_ports = {}
 env_vars = {}
-volume_mounts = { "/home/samir/Sites" = "/sites" }
+volume_mounts = { "/home/user/Sites" = "/sites" }
 command = [
     "/bin/sql-studio",
     "--no-browser",
@@ -341,6 +341,29 @@ Once added to `templates.toml`, spin up any of the custom services with:
 dar services --add sqlstudio-mysql
 dar services --add sqlstudio-pg
 dar services --add sqlstudio-sqlite
+```
+
+### Shell Auto-Completions
+
+`dar` provides built-in auto-completion generation for major shells via `clap_complete`.
+
+#### 1. Generate Completion Script
+
+##### Fish
+```fish
+dar completions fish > ~/.config/fish/completions/dar.fish
+```
+
+##### Zsh
+```zsh
+mkdir -p ~/.zsh/completions
+dar completions zsh > ~/.zsh/completions/_dar
+```
+
+##### Bash
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+dar completions bash > ~/.local/share/bash-completion/completions/dar
 ```
 
 ---
@@ -386,7 +409,7 @@ On **NixOS**, because `/etc/ssl/certs` is read-only, you must add your `mkcert` 
   # Trust local mkcert Root CA system-wide
   security.pki.certificateFiles = [
     (builtins.path {
-      path = "${config.users.users.samir.home}/.local/share/mkcert/rootCA.pem";
+      path = "${config.users.users.<username>.home}/.local/share/mkcert/rootCA.pem";
       name = "mkcert-rootCA.pem";
     })
   ];

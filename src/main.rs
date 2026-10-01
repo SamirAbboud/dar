@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use colored::*;
 
 mod commands;
@@ -130,6 +131,13 @@ enum Commands {
 
     /// List all linked local development sites
     Sites,
+
+    /// Generate shell auto-completions for Bash, Zsh, Fish, etc.
+    Completions {
+        /// The shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
 }
 
 fn main() {
@@ -189,6 +197,13 @@ fn main() {
             }
         }
         Commands::Sites => commands::sites::run(),
+        Commands::Completions { shell } => {
+            use clap::CommandFactory;
+            let mut cmd = Cli::command();
+            let bin_name = cmd.get_name().to_string();
+            generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+            Ok(())
+        }
     };
 
     if let Err(err_msg) = result {
