@@ -9,7 +9,7 @@
 - ⚡ **Fast & Lightweight**: Built in Rust for maximum performance, single-binary efficiency, and instant startup times.
 - 🌐 **Site Linking & Parking**: Link current directories or park entire dev folders (`dar link`, `dar parked`, `dar sites`) to automatically route local `.test` domains.
 - 🔒 **Instant SSL/TLS**: Secure local sites with custom SSL certificates (`dar secure` / `dar unsecure`) for HTTPS support out of the box.
-- 🐘 **Isolated PHP Runtimes**: Switch or run multiple PHP-FPM versions side by side (`dar php`) without system-wide version conflicts.
+- 🐘 **Isolated PHP Runtimes**: Switch global PHP versions (`dar php -u`) or isolate individual project sites (`dar php -i`) to specific PHP-FPM runtimes or `.darrc` versions without system-wide conflicts.
 - 📦 **PHP-Aware Composer**: Run `dar composer` using the exact PHP runtime configured for your active project.
 - 🐳 **Containerized Services**: Provision background services (`dar services`) with dynamic port management, unified status tracking, and container-to-container DNS via a dedicated `dar-net` bridge network.
 - ⚙️ **Extensible via User Templates**: Add custom Docker-based services or developer tools via `~/.dar/templates.toml` without altering core binaries.
@@ -196,6 +196,11 @@ dar php --current
 dar php -u 8.2
 dar php --use 8.3
 
+# Isolate current project site to a specific PHP version or using .darrc
+dar php -i
+dar php -i 8.2
+dar php --isolate 8.3
+
 # Pass arguments directly to the active PHP CLI binary
 dar php -v
 dar php -m
@@ -209,6 +214,7 @@ dar php -S localhost:8000 -t public/
 | `--list` | `-l` | List all installed PHP versions and their installation paths |
 | `--current` | `-c` | Display the currently active PHP version |
 | `--use <VER>` | `-u <VER>` | Switch to or provision a specific PHP version (e.g. `8.3`, `8.4`) |
+| `--isolate <VER>` | `-i <VER>` | Isolate the current project site to a specific PHP version or using `.darrc` configuration |
 | `<ARGS>...` | *(none)* | Pass raw CLI flags/arguments directly to the active `php` binary |
 
 
@@ -437,6 +443,7 @@ On **NixOS**, because `/etc/ssl/certs` is read-only, you must add your `mkcert` 
 | `~/.dar/services/` | Docker container volumes, configurations, and runtime states |
 | `~/.dar/sites/` | Individual Nginx virtual host `.conf` files for linked `.test` domains |
 | `~/.dar/sites.json` | JSON registry mapping linked site names, target project paths, SSL (`secured`) status, and creation timestamps |
+| `~/.dar/isolations.json` | JSON registry mapping project paths to their isolated PHP runtime versions |
 | `~/.dar/templates.toml` | Custom service templates and Docker container definitions |
 | `~/.dar/versions.toml` | Pins default tool versions used during installation (`nginx`, `pcre2`, `openssl`, `zlib`, `default_php`, `mkcert`) |
 

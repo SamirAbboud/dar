@@ -90,6 +90,10 @@ enum Commands {
         #[arg(short = 'u', long = "use")]
         use_version: Option<String>,
 
+        /// Isolate current project site to a specific PHP version (e.g. `dar php -i 8.2` or `dar php -i`)
+        #[arg(short = 'i', long = "isolate", num_args(0..=1), default_missing_value = "")]
+        isolate: Option<String>,
+
         /// Raw arguments passed directly to the PHP binary (e.g. `dar php -v` or `dar php -S ...`)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
@@ -154,9 +158,13 @@ fn main() {
             list,
             current,
             use_version,
+            isolate,
             args,
         } => {
-            if let Some(version) = use_version {
+            if let Some(version) = isolate {
+                let target = if version.is_empty() { None } else { Some(version) };
+                commands::php::isolate(target)
+            } else if let Some(version) = use_version {
                 commands::php::use_version(version)
             } else if list {
                 commands::php::list()

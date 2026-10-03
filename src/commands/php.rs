@@ -88,3 +88,14 @@ pub fn passthrough(args: &[String]) -> Result<(), String> {
     let dar_dir = get_dar_dir()?;
     execute_isolated_php(&dar_dir, args)
 }
+
+/// Isolates the current project site to a specific PHP version.
+pub fn isolate(target: Option<String>) -> Result<(), String> {
+    match target {
+        Some(ver) => println!("[STUB] Isolating project to PHP version: {}", ver),
+        None => println!("[STUB] Isolating project using .darrc configuration"),
+    }
+    Ok(())
+}
+
+

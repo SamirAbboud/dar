@@ -41,6 +41,12 @@ pub fn setup_directories(dar_dir: &Path) -> Result<(), String> {
             .map_err(|e| format!("Failed to create sites store: {}", e))?;
     }
 
+    let isolations_store = dar_dir.join("isolations.json");
+    if !isolations_store.exists() {
+        fs::write(&isolations_store, "{}")
+            .map_err(|e| format!("Failed to create isolations store: {}", e))?;
+    }
+
     // Ensure templates.toml is populated with default service configurations
     load_templates(dar_dir)?;
 
