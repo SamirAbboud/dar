@@ -3,7 +3,9 @@ use std::process::{Command, Stdio};
 
 use crate::utils::paths::get_dar_dir;
 use crate::services::templates::{ServiceTemplate, load_templates};
-use crate::services::{nginx::is_nginx_running, php::is_fpm_running};
+use crate::services::{nginx::is_nginx_running, php::is_fpm_running, php::is_pid_file_running};
+use crate::store::IsolationsStore;
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct ServiceInfo {
@@ -144,17 +146,47 @@ fn get_nginx_service_info(dar_dir: &std::path::Path) -> ServiceInfo {
     }
 }
 
-/// Builds a `ServiceInfo` summary for the local PHP-FPM runtime instance using PID check.
-fn get_php_fpm_service_info(dar_dir: &std::path::Path) -> ServiceInfo {
-    let is_active = is_fpm_running(dar_dir);
-
-    ServiceInfo {
+/// Builds `ServiceInfo` summaries for the global PHP-FPM and all running/configured isolated instances.
+fn get_php_fpm_services_info(dar_dir: &std::path::Path) -> Vec<ServiceInfo> {
+    let mut services = Vec::new();
+    // 1. Global / Default PHP-FPM
+    let is_global_active = is_fpm_running(dar_dir);
+    services.push(ServiceInfo {
         name: "php-fpm".to_string(),
-        service_type: "PHP Runtime (FPM)".to_string(),
+        service_type: "PHP Runtime (FPM - Global)".to_string(),
         port: "unix socket".to_string(),
-        status: if is_active { "active".to_string() } else { "stopped".to_string() },
-        is_active,
+        status: if is_global_active {
+            "active".to_string()
+        } else {
+            "stopped".to_string()
+        },
+        is_active: is_global_active,
+    });
+
+    // 2. Isolated PHP-FPM Instances
+    if let Ok(store) = IsolationsStore::load(dar_dir) {
+        // Collect unique isolated PHP versions (e.g., ["8.3"])
+        let unique_versions: HashSet<_> = store.mappings.values().cloned().collect();
+
+        for ver in unique_versions {
+            let pid_file = dar_dir.join("logs").join(format!("php{}-fpm.pid", ver));
+            let is_active = is_pid_file_running(&pid_file);
+
+            services.push(ServiceInfo {
+                name: format!("php-fpm@{}", ver),
+                service_type: format!("PHP Runtime (FPM v{})", ver),
+                port: "unix socket".to_string(),
+                status: if is_active {
+                    "active".to_string()
+                } else {
+                    "stopped".to_string()
+                },
+                is_active,
+            });
+        }
     }
+
+    services
 }
 
 /// Formats raw Docker status string into human-readable states.
@@ -244,8 +276,8 @@ pub fn get_all_services() -> Result<Vec<ServiceInfo>, String> {
     // 1. Nginx Status
     services.push(get_nginx_service_info(&dar_dir));
 
-    // 2. Active PHP-FPM Status
-    services.push(get_php_fpm_service_info(&dar_dir));
+    // 2. Active & Isolated PHP-FPM Statuses
+    services.extend(get_php_fpm_services_info(&dar_dir));
 
     // 3. Docker Containers (dar--*)
     if verify_docker().is_ok() {

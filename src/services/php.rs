@@ -4,9 +4,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::collections::HashMap;
 use colored::*;
+use std::thread;
+use std::time::Duration;
+use std::collections::HashSet;
 
 use crate::services::composer::ensure_composer;
 use crate::utils::archive::{fetch_and_extract, find_file_recursive};
+use crate::store::IsolationsStore;
 
 /// Normalizes inputs like "php@8.2", "php-8.2", "v8.2" down to "8.2".
 pub fn normalize_php_version(raw_version: &str) -> String {
@@ -206,14 +210,13 @@ php_admin_value[php_ini] = {}
     Ok(conf_path)
 }
 
-/// Checks if PHP-FPM process is running via sending signal 0 to its PID.
-pub fn is_fpm_running(dar_dir: &Path) -> bool {
-    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+/// Checks if a process is running by sending signal 0 to the PID stored in a file.
+pub fn is_pid_file_running(pid_file: &Path) -> bool {
     if !pid_file.exists() {
         return false;
     }
 
-    if let Ok(pid_str) = fs::read_to_string(&pid_file) {
+    if let Ok(pid_str) = fs::read_to_string(pid_file) {
         if let Ok(pid) = pid_str.trim().parse::<i32>() {
             return Command::new("kill")
                 .arg("-0")
@@ -228,10 +231,16 @@ pub fn is_fpm_running(dar_dir: &Path) -> bool {
     false
 }
 
-/// Starts PHP-FPM if it's not already running.
-pub fn start(dar_dir: &Path) -> Result<(), String> {
+/// Checks if PHP-FPM process is running via sending signal 0 to its PID.
+pub fn is_fpm_running(dar_dir: &Path) -> bool {
+    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+    is_pid_file_running(&pid_file)
+}
+
+/// Starts ONLY the global/default PHP-FPM daemon.
+pub fn start_global_fpm(dar_dir: &Path) -> Result<(), String> {
     if is_fpm_running(dar_dir) {
-        println!("{}", "🐘 PHP-FPM is already running.".yellow());
+        println!("{}", "🐘 Global PHP-FPM is already running.".yellow());
         return Ok(());
     }
 
@@ -250,7 +259,7 @@ pub fn start(dar_dir: &Path) -> Result<(), String> {
 
     let conf_path = create_default_php_fpm_config(dar_dir)?;
 
-    println!("{}", "🚀 Starting PHP-FPM service...".cyan());
+    println!("{}", "🚀 Starting global PHP-FPM service...".cyan());
 
     let status = Command::new(&local_php_fpm)
         .arg("-y")
@@ -259,24 +268,50 @@ pub fn start(dar_dir: &Path) -> Result<(), String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
-        .map_err(|e| format!("Failed to start php-fpm: {}", e))?;
+        .map_err(|e| format!("Failed to start global php-fpm: {}", e))?;
 
     if !status.success() {
-        return Err("PHP-FPM failed to start.".to_string());
+        return Err("Global PHP-FPM failed to start.".to_string());
     }
 
-    println!("{}", "✨ PHP-FPM started successfully!".green());
+    println!("{}", "✨ Global PHP-FPM started successfully!".green());
     Ok(())
 }
 
-/// Stops active PHP-FPM service using its PID file.
-pub fn stop(dar_dir: &Path) -> Result<(), String> {
-    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+/// Starts ONLY a specific isolated PHP version daemon (e.g., "8.3").
+pub fn start_version(dar_dir: &Path, version: &str) -> Result<(), String> {
+    ensure_isolated_fpm_running(dar_dir, version)?;
+    println!("{}", format!("✨ Isolated PHP {} FPM started successfully!", version).green());
+    Ok(())
+}
 
+/// Starts the global PHP-FPM process AND all active isolated PHP-FPM daemons.
+pub fn start(dar_dir: &Path) -> Result<(), String> {
+    // 1. Start Global Instance
+    start_global_fpm(dar_dir)?;
+
+    // 2. Start All Isolated Instances
+    if let Ok(store) = IsolationsStore::load(dar_dir) {
+        let unique_versions: HashSet<_> = store.mappings.values().cloned().collect();
+        for ver in unique_versions {
+            if let Err(e) = ensure_isolated_fpm_running(dar_dir, &ver) {
+                println!(
+                    "{}",
+                    format!("⚠️ Failed to start isolated PHP {} FPM: {}", ver, e).yellow()
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Helper to kill a process given its PID file path and remove the PID file.
+fn stop_pid_file(pid_file: &Path, label: &str) -> bool {
     if pid_file.exists() {
-        if let Ok(pid_str) = fs::read_to_string(&pid_file) {
+        if let Ok(pid_str) = fs::read_to_string(pid_file) {
             if let Ok(pid) = pid_str.trim().parse::<i32>() {
-                println!("{}", "🛑 Stopping PHP-FPM service...".cyan());
+                println!("{}", format!("🛑 Stopping {}...", label).cyan());
                 let _ = Command::new("kill")
                     .arg(pid.to_string())
                     .stdout(Stdio::null())
@@ -284,18 +319,63 @@ pub fn stop(dar_dir: &Path) -> Result<(), String> {
                     .status();
             }
         }
-        let _ = fs::remove_file(&pid_file);
-        println!("{}", "✨ PHP-FPM stopped successfully.".green());
+        let _ = fs::remove_file(pid_file);
+        println!("{}", format!("✨ {} stopped successfully.", label).green());
+        true
     } else {
-        println!("{}", "🐘 PHP-FPM is not running.".yellow());
+        false
+    }
+}
+
+/// Stops ONLY the global/default PHP-FPM daemon.
+pub fn stop_global_fpm(dar_dir: &Path) -> Result<(), String> {
+    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+    if !stop_pid_file(&pid_file, "global PHP-FPM service") {
+        println!("{}", "🐘 Global PHP-FPM is not running.".yellow());
+    }
+    Ok(())
+}
+
+/// Stops ONLY a specific isolated PHP version daemon (e.g., "8.3").
+pub fn stop_version(dar_dir: &Path, version: &str) -> Result<(), String> {
+    let pid_file = dar_dir.join("logs").join(format!("php{}-fpm.pid", version));
+    let label = format!("isolated PHP {} FPM service", version);
+    if !stop_pid_file(&pid_file, &label) {
+        println!("{}", format!("🐘 Isolated PHP {} FPM is not running.", version).yellow());
+    }
+    Ok(())
+}
+
+/// Stops the global PHP-FPM daemon AND all active isolated PHP-FPM daemons.
+pub fn stop(dar_dir: &Path) -> Result<(), String> {
+    // 1. Stop Global Instance
+    stop_global_fpm(dar_dir)?;
+
+    // 2. Stop All Isolated Instances recorded in IsolationsStore
+    if let Ok(store) = IsolationsStore::load(dar_dir) {
+        let unique_versions: HashSet<_> = store.mappings.values().cloned().collect();
+        for ver in unique_versions {
+            let _ = stop_version(dar_dir, &ver);
+        }
     }
 
     Ok(())
 }
 
-/// Restarts PHP-FPM service by stopping any existing instance and starting a fresh process.
+/// Restarts ONLY the global PHP-FPM daemon.
+pub fn restart_global_fpm(dar_dir: &Path) -> Result<(), String> {
+    stop_global_fpm(dar_dir)?;
+    start_global_fpm(dar_dir)
+}
+
+/// Restarts ONLY a specific isolated PHP version daemon (e.g., "8.3").
+pub fn restart_version(dar_dir: &Path, version: &str) -> Result<(), String> {
+    stop_version(dar_dir, version)?;
+    start_version(dar_dir, version)
+}
+
+/// Restarts global PHP-FPM AND all isolated PHP-FPM daemons.
 pub fn restart(dar_dir: &Path) -> Result<(), String> {
-    println!("{}", "🔄 Restarting PHP-FPM service...".cyan());
     stop(dar_dir)?;
     start(dar_dir)
 }
@@ -323,6 +403,106 @@ pub fn execute_isolated_php(dar_dir: &Path, args: &[String]) -> Result<(), Strin
     }
 
     Ok(())
+}
+
+/// Resolves the raw target version string (from CLI or `.darrc`) down to a clean version.
+pub fn resolve_isolation_target(raw_target: Option<String>, project_dir: &Path) -> Result<String, String> {
+    let version_str = match raw_target {
+        Some(v) if !v.trim().is_empty() => v,
+        _ => match parse_darrc(project_dir)? {
+            Some(v) => v,
+            None => {
+                return Err(
+                    "No version specified and no .darrc file found in the current directory.\n\
+                     Usage: dar php -i <version> or create a .darrc with 'php=8.2'".to_string(),
+                );
+            }
+        },
+    };
+
+    Ok(normalize_php_version(&version_str))
+}
+
+/// Ensures the isolated PHP runtime is provisioned and its dedicated FPM process is active.
+pub fn ensure_isolated_fpm_running(dar_dir: &Path, version: &str) -> Result<PathBuf, String> {
+    let resolved_version = resolve_php_version_alias(version);
+    let target_version_dir = dar_dir.join("php").join("versions").join(&resolved_version);
+
+    // 1. Provision PHP runtime if missing
+    if !target_version_dir.exists() {
+        println!("📦 Provisioning isolated PHP {} runtime...", resolved_version);
+        fetch_isolated_php(dar_dir, &resolved_version)?;
+    }
+
+    let socket_path = get_isolated_fpm_socket(dar_dir, version);
+
+    // 2. Check if socket already exists and process is active
+    if socket_path.exists() {
+        return Ok(socket_path);
+    }
+
+    // 3. Prepare config and launch version-specific FPM binary
+    let conf_path = ensure_isolated_fpm_config(dar_dir, version)?;
+    let fpm_bin = target_version_dir.join("sbin").join("php-fpm");
+
+    if !fpm_bin.exists() {
+        return Err(format!("PHP-FPM binary missing at {}", fpm_bin.display()));
+    }
+
+    println!("🚀 Starting isolated PHP {} FPM daemon...", version);
+
+    let status = Command::new(&fpm_bin)
+        .arg("-y")
+        .arg(&conf_path)
+        .arg("-D")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map_err(|e| format!("Failed to start php{}-fpm: {}", version, e))?;
+
+    if !status.success() {
+        return Err(format!("PHP-FPM {} daemon failed to start.", version));
+    }
+
+    // 4. Wait up to 5 seconds for UNIX socket creation
+    for _ in 0..10 {
+        if socket_path.exists() {
+            println!("✨ PHP {} FPM listening at {}", version.bold(), socket_path.display());
+            return Ok(socket_path);
+        }
+        thread::sleep(Duration::from_millis(500));
+    }
+
+    Err(format!("Timed out waiting for socket {}", socket_path.display()))
+}
+
+/// Attempts to parse `php = ...` from a `.darrc` file in the target directory.
+fn parse_darrc(dir: &Path) -> Result<Option<String>, String> {
+    let darrc_path = dir.join(".darrc");
+    if !darrc_path.exists() {
+        return Ok(None);
+    }
+
+    let content = fs::read_to_string(&darrc_path)
+        .map_err(|e| format!("Failed to read .darrc at {}: {}", darrc_path.display(), e))?;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with('#') || line.is_empty() {
+            continue;
+        }
+
+        if let Some((key, val)) = line.split_once('=') {
+            if key.trim().eq_ignore_ascii_case("php") {
+                let clean_val = val.trim().trim_matches('"').trim_matches('\'').trim();
+                if !clean_val.is_empty() {
+                    return Ok(Some(clean_val.to_string()));
+                }
+            }
+        }
+    }
+
+    Ok(None)
 }
 
 /// Extracts and copies downloaded PHP FPM and CLI binaries into standard `sbin/` and `bin/` 
@@ -386,4 +566,46 @@ date.timezone = UTC
     }
 
     Ok(ini_path)
+}
+
+/// Returns the path to the version-specific FPM socket (e.g., `~/.dar/php/php8.3-fpm.sock`).
+fn get_isolated_fpm_socket(dar_dir: &Path, version: &str) -> PathBuf {
+    dar_dir.join("php").join(format!("php{}-fpm.sock", version))
+}
+
+/// Generates a version-specific `php-fpm.conf` file for isolated project execution.
+fn ensure_isolated_fpm_config(dar_dir: &Path, version: &str) -> Result<PathBuf, String> {
+    let php_dir = dar_dir.join("php");
+    let php_ini_path = ensure_php_ini(dar_dir)?;
+
+    let conf_path = php_dir.join(format!("php{}-fpm.conf", version));
+    let pid_path = dar_dir.join("logs").join(format!("php{}-fpm.pid", version));
+    let log_path = dar_dir.join("logs").join(format!("php{}-fpm.log", version));
+    let socket_path = get_isolated_fpm_socket(dar_dir, version);
+
+    let conf_content = format!(
+        r#"[global]
+pid = {}
+error_log = {}
+
+[www]
+listen = {}
+listen.mode = 0666
+pm = dynamic
+pm.max_children = 5
+pm.start_servers = 2
+pm.min_spare_servers = 1
+pm.max_spare_servers = 3
+php_admin_value[php_ini] = {}
+"#,
+        pid_path.display(),
+        log_path.display(),
+        socket_path.display(),
+        php_ini_path.display()
+    );
+
+    fs::write(&conf_path, conf_content)
+        .map_err(|e| format!("Failed to write isolated php{}-fpm.conf: {}", version, e))?;
+
+    Ok(conf_path)
 }

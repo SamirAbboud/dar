@@ -45,11 +45,24 @@ pub fn start(name: Option<&str>) -> Result<(), String> {
     let dar_dir = get_dar_dir()?;
 
     match name {
-        Some(svc) => match svc.trim().to_lowercase().as_str() {
-            "nginx" => nginx::start(&dar_dir),
-            "php-fpm" | "php" => php::start(&dar_dir),
-            _ => docker::start(svc),
-        },
+        Some(svc) => {
+            let target = svc.trim().to_lowercase();
+
+            if target == "nginx" {
+                nginx::start(&dar_dir)
+            } else if target == "php-fpm" || target == "php" {
+                // Starts global PHP-FPM + ALL isolated PHP-FPM daemons
+                php::start(&dar_dir)
+            } else if target == "php-fpm@global" || target == "php@global" {
+                // Starts ONLY the global PHP-FPM daemon
+                php::start_global_fpm(&dar_dir)
+            } else if let Some(version) = target.strip_prefix("php-fpm@") {
+                // Starts ONLY a specific isolated version (e.g. php-fpm@8.3)
+                php::start_version(&dar_dir, version)
+            } else {
+                docker::start(svc)
+            }
+        }
         None => {
             println!("{}", "🚀 Starting all core Dar services...".cyan().bold());
             php::start(&dar_dir)?;
@@ -64,11 +77,24 @@ pub fn stop(name: Option<&str>) -> Result<(), String> {
     let dar_dir = get_dar_dir()?;
 
     match name {
-        Some(svc) => match svc.trim().to_lowercase().as_str() {
-            "nginx" => nginx::stop(&dar_dir),
-            "php-fpm" | "php" => php::stop(&dar_dir),
-            _ => docker::stop(svc),
-        },
+        Some(svc) => {
+            let target = svc.trim().to_lowercase();
+
+            if target == "nginx" {
+                nginx::stop(&dar_dir)
+            } else if target == "php-fpm" || target == "php" {
+                // Stops global PHP-FPM + ALL isolated PHP-FPM daemons
+                php::stop(&dar_dir)
+            } else if target == "php-fpm@global" || target == "php@global" {
+                // Stops ONLY the global PHP-FPM daemon
+                php::stop_global_fpm(&dar_dir)
+            } else if let Some(version) = target.strip_prefix("php-fpm@") {
+                // Stops ONLY a specific isolated version (e.g. php-fpm@8.3)
+                php::stop_version(&dar_dir, version)
+            } else {
+                docker::stop(svc)
+            }
+        }
         None => {
             println!("{}", "🛑 Stopping all core Dar services...".cyan().bold());
             nginx::stop(&dar_dir)?;
@@ -83,15 +109,28 @@ pub fn restart(name: Option<&str>) -> Result<(), String> {
     let dar_dir = get_dar_dir()?;
 
     match name {
-        Some(svc) => match svc.trim().to_lowercase().as_str() {
-            "nginx" => nginx::restart(&dar_dir),
-            "php-fpm" | "php" => php::restart(&dar_dir),
-            _ => docker::restart(svc),
-        },
+        Some(svc) => {
+            let target = svc.trim().to_lowercase();
+
+            if target == "nginx" {
+                nginx::restart(&dar_dir)
+            } else if target == "php-fpm" || target == "php" {
+                // Restarts global PHP-FPM + ALL isolated PHP-FPM daemons
+                php::restart(&dar_dir)
+            } else if target == "php-fpm@global" || target == "php@global" {
+                // Restarts ONLY the global PHP-FPM daemon
+                php::restart_global_fpm(&dar_dir)
+            } else if let Some(version) = target.strip_prefix("php-fpm@") {
+                // Restarts ONLY a specific isolated version (e.g. php-fpm@8.3)
+                php::restart_version(&dar_dir, version)
+            } else {
+                docker::restart(svc)
+            }
+        }
         None => {
             println!("{}", "🔄 Restarting all core Dar services...".cyan().bold());
-            nginx::restart(&dar_dir)?;
             php::restart(&dar_dir)?;
+            nginx::restart(&dar_dir)?;
             println!("\n{}", "✨ All core services restarted!".green().bold());
             Ok(())
         }

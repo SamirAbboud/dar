@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 
 use crate::utils::archive::resolve_build_dir;
 use crate::utils::system::get_available_compiler;
+use crate::store::{SitesStore, Site};
 
 /// Builds and installs Nginx from source.
 pub fn build_and_install_nginx(
@@ -485,5 +486,80 @@ server {{
         error_log = error_log.display(),
         fpm_sock = fpm_sock.display(),
     )
+}
+
+/// Ensures the site is linked and its Nginx vhost exists, then updates `fastcgi_pass` 
+/// to point to the isolated socket path and reloads Nginx.
+pub fn ensure_and_isolate_nginx_site(
+    dar_dir: &Path,
+    project_path: &Path,
+    socket_path: &Path,
+) -> Result<String, String> {
+    let mut store = SitesStore::load(dar_dir)?;
+
+    // 1. Find existing site or auto-link
+    let site_name = match store.find_by_path(project_path) {
+        Some(s) => s.name.clone(),
+        None => {
+            // Auto-detect app name from directory name
+            let default_name = project_path
+                .file_name()
+                .ok_or_else(|| "Failed to derive site name from directory path".to_string())?
+                .to_string_lossy()
+                .to_string();
+
+            println!("🔗 Auto-linking site as '{}.test'...", default_name);
+
+            // Create standard site vhost
+            create_site_config(dar_dir, &default_name, project_path, false)?;
+
+            // Register in sites.json
+            let new_site = Site::new(default_name.clone(), project_path.to_path_buf(), false);
+            store.add(new_site)?;
+
+            default_name
+        }
+    };
+
+    let conf_path = dar_dir.join("sites").join(format!("{}.conf", site_name));
+
+    if !conf_path.exists() {
+        return Err(format!(
+            "Nginx site configuration file missing at `{}`.",
+            conf_path.display()
+        ));
+    }
+
+    // 2. Update fastcgi_pass directive in the vhost config
+    let content = fs::read_to_string(&conf_path)
+        .map_err(|e| format!("Failed to read site config {}: {}", conf_path.display(), e))?;
+
+    if !content.contains("fastcgi_pass") {
+        return Err(format!(
+            "No `fastcgi_pass` directive found in `{}` to update.",
+            conf_path.display()
+        ));
+    }
+
+    let new_content = content
+        .lines()
+        .map(|line| {
+            if line.trim_start().starts_with("fastcgi_pass") {
+                let indent = &line[..line.len() - line.trim_start().len()];
+                format!("{}fastcgi_pass unix:{};", indent, socket_path.display())
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n") + "\n";
+
+    fs::write(&conf_path, new_content)
+        .map_err(|e| format!("Failed to write updated site config: {}", e))?;
+
+    // 3. Reload Nginx configuration
+    restart(dar_dir)?;
+
+    Ok(site_name)
 }
 

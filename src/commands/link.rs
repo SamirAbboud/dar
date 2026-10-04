@@ -2,8 +2,7 @@ use crate::services::nginx::{create_site_config, ensure_hosts_entry, restart as 
 use crate::commands::park::park_folder;
 use crate::services::ssl::generate_certificate;
 use crate::utils::paths::{resolve_app_name, resolve_target_path, get_dar_dir};
-use crate::store::SitesStore;
-use crate::store::site::Site;
+use crate::store::{SitesStore, Site};
 use colored::*;
 
 /// Links a directory to a local `.test` domain.
