@@ -94,6 +94,10 @@ enum Commands {
         #[arg(short = 'i', long = "isolate", num_args(0..=1), default_missing_value = "")]
         isolate: Option<String>,
 
+        /// Remove PHP version isolation for the current project site
+        #[arg(short = 'U', long = "unisolate", alias = "un")]
+        unisolate: bool,
+
         /// Raw arguments passed directly to the PHP binary (e.g. `dar php -v` or `dar php -S ...`)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
@@ -159,9 +163,12 @@ fn main() {
             current,
             use_version,
             isolate,
+            unisolate,
             args,
         } => {
-            if let Some(version) = isolate {
+            if unisolate {
+                commands::php::unisolate()
+            } else if let Some(version) = isolate {
                 let target = if version.is_empty() { None } else { Some(version) };
                 commands::php::isolate(target)
             } else if let Some(version) = use_version {

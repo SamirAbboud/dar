@@ -2,7 +2,7 @@ use colored::*;
 
 use crate::config::load_or_create_config;
 use crate::services::nginx::{build_and_install_nginx, create_default_nginx_config, set_nginx_capabilities, restart as restart_nginx};
-use crate::services::php::fetch_isolated_php;
+use crate::services::php::{ensure_php_version, set_global_php_version};
 use crate::services::ssl::ensure_mkcert;
 use crate::utils::system::setup_directories;
 
@@ -46,7 +46,8 @@ pub fn run() -> Result<(), String> {
 
     set_nginx_capabilities(&nginx_bin)?;
     ensure_mkcert(&dar_dir, &cfg.mkcert)?;
-    fetch_isolated_php(&dar_dir, &cfg.default_php)?;
+    let php_version = ensure_php_version(&dar_dir, &cfg.default_php)?;
+    set_global_php_version(&dar_dir, &php_version)?;
     ensure_composer(&dar_dir)?;
     create_default_nginx_config(&dar_dir)?;
     restart_nginx(&dar_dir)?;

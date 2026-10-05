@@ -110,16 +110,14 @@ pub fn list_installed_php_versions(dar_dir: &Path) -> (Vec<String>, Option<Strin
     (installed, active)
 }
 
-/// Downloads and sets up an isolated PHP runtime (FPM and CLI) for the specified version,
-/// updating the `~/.dar/php/current` symlink to point to the active version.
-pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, String> {
+/// Ensures a specific PHP version is downloaded and provisioned in `versions_dir`.
+pub fn ensure_php_version(dar_dir: &Path, raw_version: &str) -> Result<String, String> {
     let php_version = resolve_php_version_alias(raw_version);
     let versions_dir = dar_dir.join("php").join("versions");
     let target_version_dir = versions_dir.join(&php_version);
-    let current_symlink = dar_dir.join("php").join("current");
 
     if !target_version_dir.exists() {
-        println!("📦 Provisioning isolated PHP {} runtime...", php_version);
+        println!("📦 Provisioning PHP {} runtime...", php_version);
 
         let src_dir = dar_dir.join("src");
         let base_url = "https://dl.static-php.dev/static-php-cli/common";
@@ -148,6 +146,18 @@ pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, S
         setup_binary_package(&fpm_dir, &cli_dir, &target_version_dir)?;
     }
 
+    Ok(php_version)
+}
+
+/// Sets a provisioned PHP version as the global active version.
+pub fn set_global_php_version(dar_dir: &Path, php_version: &str) -> Result<(), String> {
+    let target_version_dir = dar_dir.join("php").join("versions").join(php_version);
+    let current_symlink = dar_dir.join("php").join("current");
+
+    if !target_version_dir.exists() {
+        return Err(format!("PHP version {} is not provisioned.", php_version));
+    }
+
     // Stop current FPM service before updating symlink
     stop(dar_dir)?;
 
@@ -165,7 +175,7 @@ pub fn fetch_isolated_php(dar_dir: &Path, raw_version: &str) -> Result<String, S
     // Start PHP-FPM with the new version
     start(dar_dir)?;
 
-    Ok(php_version)
+    Ok(())
 }
 
 /// Generates the global `php-fpm.conf` file in `~/.dar/php/`, configuring socket listening,
@@ -440,7 +450,7 @@ pub fn ensure_isolated_fpm_running(dar_dir: &Path, version: &str) -> Result<Path
     // 1. Provision PHP runtime if missing
     if !target_version_dir.exists() {
         println!("📦 Provisioning isolated PHP {} runtime...", resolved_version);
-        fetch_isolated_php(dar_dir, &resolved_version)?;
+        ensure_php_version(dar_dir, &resolved_version)?;
     }
 
     let socket_path = get_isolated_fpm_socket(dar_dir, version);

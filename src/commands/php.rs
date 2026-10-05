@@ -1,18 +1,18 @@
 use crate::services::php::{
-    execute_isolated_php, 
-    fetch_isolated_php, 
+    execute_isolated_php,
+    ensure_php_version,
+    set_global_php_version,
     list_installed_php_versions,
     resolve_isolation_target,
     ensure_isolated_fpm_running
 };
-use crate::services::nginx::ensure_and_isolate_nginx_site;
-use crate::store::IsolationsStore;
+use crate::services::nginx::{ensure_and_isolate_nginx_site, create_site_config, restart as restart_nginx};
+use crate::store::{IsolationsStore, SitesStore};
 use crate::utils::table::create_table;
-use crate::utils::paths::get_dar_dir;
+use crate::utils::paths::{get_dar_dir, resolve_target_path};
 
 use colored::*;
 use comfy_table::Cell;
-use std::env;
 
 /// Lists all locally provisioned PHP versions.
 pub fn list() -> Result<(), String> {
@@ -60,7 +60,8 @@ pub fn use_version(version: String) -> Result<(), String> {
 
     println!("\n{}", format!("🐘 Switching to PHP {}...", version.bold()).cyan());
 
-    let active_version = fetch_isolated_php(&dar_dir, &version)?;
+    let active_version = ensure_php_version(&dar_dir, &version)?;
+    set_global_php_version(&dar_dir, &active_version)?;
 
     println!(
         "\n{} Now using PHP {}\n",
@@ -102,24 +103,23 @@ pub fn passthrough(args: &[String]) -> Result<(), String> {
 /// Isolates the current project site to a specific PHP version.
 pub fn isolate(target: Option<String>) -> Result<(), String> {
     let dar_dir = get_dar_dir()?;
-    let current_dir = env::current_dir()
-        .map_err(|e| format!("Failed to get current directory: {}", e))?;
+    let target_path = resolve_target_path(None)?;
 
-    let resolved_version = resolve_isolation_target(target, &current_dir)?;
+    let resolved_version = resolve_isolation_target(target, &target_path)?;
 
     println!(
         "\n{} Isolating project '{}' to PHP {}...",
         "🐘".cyan(),
-        current_dir.file_name().unwrap_or_default().to_string_lossy().bold(),
+        target_path.file_name().unwrap_or_default().to_string_lossy().bold(),
         resolved_version.bold()
     );
 
     let socket_path = ensure_isolated_fpm_running(&dar_dir, &resolved_version)?;
-    let site_name = ensure_and_isolate_nginx_site(&dar_dir, &current_dir, &socket_path)?;
+    let site_name = ensure_and_isolate_nginx_site(&dar_dir, &target_path, &socket_path)?;
 
     // Persist mapping into ~/.dar/isolations.json
     let mut isolations_store = IsolationsStore::load(&dar_dir)?;
-    isolations_store.set_isolation(&current_dir, &resolved_version)?;
+    isolations_store.set_isolation(&target_path, &resolved_version)?;
 
     println!(
         "✅ Site '{}' ({}.test) successfully isolated to PHP {}!\n",
@@ -131,3 +131,44 @@ pub fn isolate(target: Option<String>) -> Result<(), String> {
     Ok(())
 }
 
+/// Unisolates the current project site.
+pub fn unisolate() -> Result<(), String> {
+    let target_path = resolve_target_path(None)?;
+    let dar_dir = get_dar_dir()?;
+
+    let mut isolations_store = IsolationsStore::load(&dar_dir)?;
+
+    match isolations_store.remove_isolation(&target_path)? {
+        Some(previous_version) => {
+            let sites_store = SitesStore::load(&dar_dir)?;
+
+            if let Some(site) = sites_store.find_by_path(&target_path) {
+                create_site_config(&dar_dir, &site.name, &target_path, site.secured)?;
+                restart_nginx(&dar_dir)?;
+
+                println!(
+                    "\n{} Removed PHP {} isolation from site '{}'. Restored to global PHP-FPM.\n",
+                    "✅".green(),
+                    previous_version.bold(),
+                    site.name.bold()
+                );
+            } else {
+                println!(
+                    "\n{} Removed PHP {} isolation mapping for path: {}\n",
+                    "✅".green(),
+                    previous_version.bold(),
+                    target_path.display().to_string().dimmed()
+                );
+            }
+        }
+        None => {
+            println!(
+                "\n{} Directory '{}' is not isolated.\n",
+                "ℹ".cyan(),
+                target_path.display().to_string().dimmed()
+            );
+        }
+    }
+
+    Ok(())
+}
