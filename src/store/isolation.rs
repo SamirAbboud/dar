@@ -61,7 +61,6 @@ impl IsolationsStore {
         self.mappings.get(&path_str)
     }
 
-    #[allow(dead_code)]
     /// Removes an isolation mapping for a project path.
     pub fn remove_isolation(&mut self, project_path: &Path) -> Result<Option<String>, String> {
         let path_str = project_path

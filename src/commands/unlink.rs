@@ -1,7 +1,7 @@
 use crate::services::nginx::{remove_site_config, restart as restart_nginx};
 use crate::services::ssl::remove_certificate;
 use crate::utils::paths::{resolve_app_name, resolve_target_path, get_dar_dir};
-use crate::store::SitesStore;
+use crate::store::{SitesStore, IsolationsStore};
 use colored::*;
 
 /// Unlinks a local development site.
@@ -26,10 +26,15 @@ pub fn run(name: Option<String>, path: Option<String>) -> Result<(), String> {
     // 2. Clean up SSL certs if they exist
     remove_certificate(&dar_dir, &app_name)?;
 
-    // 3. Remove from store
+    // 3. Remove isolation mapping if exists
+    if let Ok(mut isolations_store) = IsolationsStore::load(&dar_dir) {
+        let _ = isolations_store.remove_isolation(&target_path);
+    }
+
+    // 4. Remove from store
     store.remove(&app_name)?;
 
-    // 4. Reload Nginx
+    // 5. Reload Nginx
     restart_nginx(&dar_dir)?;
 
     println!(
