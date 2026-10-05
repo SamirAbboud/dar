@@ -3,7 +3,7 @@ use std::process::{Command, Stdio};
 
 use crate::utils::paths::get_dar_dir;
 use crate::services::templates::{ServiceTemplate, load_templates};
-use crate::services::{nginx::is_nginx_running, php::is_fpm_running, php::is_pid_file_running};
+use crate::services::{nginx::is_nginx_running, php::is_fpm_running};
 use crate::store::IsolationsStore;
 use std::collections::HashSet;
 
@@ -150,7 +150,7 @@ fn get_nginx_service_info(dar_dir: &std::path::Path) -> ServiceInfo {
 fn get_php_fpm_services_info(dar_dir: &std::path::Path) -> Vec<ServiceInfo> {
     let mut services = Vec::new();
     // 1. Global / Default PHP-FPM
-    let is_global_active = is_fpm_running(dar_dir);
+    let is_global_active = is_fpm_running(dar_dir, None);
     services.push(ServiceInfo {
         name: "php-fpm".to_string(),
         service_type: "PHP Runtime (FPM - Global)".to_string(),
@@ -169,8 +169,7 @@ fn get_php_fpm_services_info(dar_dir: &std::path::Path) -> Vec<ServiceInfo> {
         let unique_versions: HashSet<_> = store.mappings.values().cloned().collect();
 
         for ver in unique_versions {
-            let pid_file = dar_dir.join("logs").join(format!("php{}-fpm.pid", ver));
-            let is_active = is_pid_file_running(&pid_file);
+            let is_active = is_fpm_running(dar_dir, Some(&ver));
 
             services.push(ServiceInfo {
                 name: format!("php-fpm@{}", ver),

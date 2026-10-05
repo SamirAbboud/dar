@@ -1,24 +1,27 @@
-use crate::store::SitesStore;
+use crate::store::{IsolationsStore, SitesStore};
 use crate::utils::table::create_table;
 use crate::utils::paths::get_dar_dir;
 use colored::*;
 use comfy_table::{Attribute, Cell, Color as TableColor};
+use std::path::Path;
 
 /// Lists all currently linked local development sites.
 pub fn run() -> Result<(), String> {
     let dar_dir = get_dar_dir()?;
 
-    let store = SitesStore::load(&dar_dir)?;
+    let sites_store = SitesStore::load(&dar_dir)?;
 
-    if store.sites.is_empty() {
+    if sites_store.sites.is_empty() {
         println!("\n{} No sites linked yet.\n", "ℹ".cyan());
         println!("Run {} inside a project directory to link a site.", "dar link".bold());
         return Ok(());
     }
 
-    let mut table = create_table(&["Site", "URL", "Path", "Secured"]);
+    let isolations_store = IsolationsStore::load(&dar_dir).ok();
 
-    let mut sorted_sites: Vec<_> = store.sites.values().collect();
+    let mut table = create_table(&["Site", "URL", "Path", "PHP Version", "Secured"]);
+
+    let mut sorted_sites: Vec<_> = sites_store.sites.values().collect();
     sorted_sites.sort_by(|a, b| a.name.cmp(&b.name));
 
     for site in sorted_sites {
@@ -31,16 +34,40 @@ pub fn run() -> Result<(), String> {
             Cell::new("NO").fg(TableColor::Yellow)
         };
 
+        let php_badge = match get_site_php_version(&site.path, isolations_store.as_ref()) {
+            Some(version) => Cell::new(format!("PHP {}", version))
+                .fg(TableColor::Cyan)
+                .add_attribute(Attribute::Bold),
+            None => Cell::new("Global").fg(TableColor::DarkGrey),
+        };
+
         table.add_row(vec![
             Cell::new(&site.name).add_attribute(Attribute::Bold),
             Cell::new(&url).fg(TableColor::Blue),
             Cell::new(site.path.display().to_string()),
+            php_badge,
             secured_badge,
         ]);
     }
 
     println!("\n{}", table);
-    println!("\nTotal linked sites: {}\n", store.sites.len().to_string().bold());
+    println!("\nTotal linked sites: {}\n", sites_store.sites.len().to_string().bold());
 
     Ok(())
+}
+
+/// Helper function to match a project path against stored isolations
+fn get_site_php_version(
+    site_path: &Path,
+    isolations_store: Option<&IsolationsStore>,
+) -> Option<String> {
+    let store = isolations_store?;
+
+    let canonical_path = site_path
+        .canonicalize()
+        .unwrap_or_else(|_| site_path.to_path_buf())
+        .display()
+        .to_string();
+
+    store.mappings.get(&canonical_path).cloned()
 }

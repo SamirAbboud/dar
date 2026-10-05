@@ -211,7 +211,7 @@ php_admin_value[php_ini] = {}
 }
 
 /// Checks if a process is running by sending signal 0 to the PID stored in a file.
-pub fn is_pid_file_running(pid_file: &Path) -> bool {
+fn is_pid_file_running(pid_file: &Path) -> bool {
     if !pid_file.exists() {
         return false;
     }
@@ -231,15 +231,24 @@ pub fn is_pid_file_running(pid_file: &Path) -> bool {
     false
 }
 
-/// Checks if PHP-FPM process is running via sending signal 0 to its PID.
-pub fn is_fpm_running(dar_dir: &Path) -> bool {
-    let pid_file = dar_dir.join("logs").join("php-fpm.pid");
+/// Returns the PID file path for global or version-isolated PHP-FPM.
+fn get_fpm_pid_file(dar_dir: &Path, version: Option<&str>) -> PathBuf {
+    let filename = match version {
+        Some(v) => format!("php{}-fpm.pid", v),
+        None => "php-fpm.pid".to_string(),
+    };
+    dar_dir.join("logs").join(filename)
+}
+
+/// Checks if PHP-FPM (global or isolated) process is running via sending signal 0.
+pub fn is_fpm_running(dar_dir: &Path, version: Option<&str>) -> bool {
+    let pid_file = get_fpm_pid_file(dar_dir, version);
     is_pid_file_running(&pid_file)
 }
 
 /// Starts ONLY the global/default PHP-FPM daemon.
 pub fn start_global_fpm(dar_dir: &Path) -> Result<(), String> {
-    if is_fpm_running(dar_dir) {
+    if is_fpm_running(dar_dir, None) {
         println!("{}", "🐘 Global PHP-FPM is already running.".yellow());
         return Ok(());
     }
@@ -437,7 +446,7 @@ pub fn ensure_isolated_fpm_running(dar_dir: &Path, version: &str) -> Result<Path
     let socket_path = get_isolated_fpm_socket(dar_dir, version);
 
     // 2. Check if socket already exists and process is active
-    if socket_path.exists() {
+    if is_fpm_running(dar_dir, Some(version)) && socket_path.exists() {
         return Ok(socket_path);
     }
 
