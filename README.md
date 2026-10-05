@@ -201,6 +201,11 @@ dar php -i
 dar php -i 8.2
 dar php --isolate 8.3
 
+# Remove PHP isolation and restore project to global PHP-FPM
+dar php -U
+dar php --unisolate
+dar php --un
+
 # Pass arguments directly to the active PHP CLI binary
 dar php -v
 dar php -m
@@ -215,6 +220,7 @@ dar php -S localhost:8000 -t public/
 | `--current` | `-c` | Display the currently active PHP version |
 | `--use <VER>` | `-u <VER>` | Switch to or provision a specific PHP version (e.g. `8.3`, `8.4`) |
 | `--isolate <VER>` | `-i <VER>` | Isolate the current project site to a specific PHP version or using `.darrc` configuration |
+| `--unisolate` | `-U`, `--un` | Remove PHP version isolation for the current project site and restore to global PHP-FPM |
 | `<ARGS>...` | *(none)* | Pass raw CLI flags/arguments directly to the active `php` binary |
 
 
