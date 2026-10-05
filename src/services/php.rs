@@ -578,7 +578,7 @@ date.timezone = UTC
 }
 
 /// Returns the path to the version-specific FPM socket (e.g., `~/.dar/php/php8.3-fpm.sock`).
-fn get_isolated_fpm_socket(dar_dir: &Path, version: &str) -> PathBuf {
+pub fn get_isolated_fpm_socket(dar_dir: &Path, version: &str) -> PathBuf {
     dar_dir.join("php").join(format!("php{}-fpm.sock", version))
 }
 

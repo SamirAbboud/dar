@@ -50,7 +50,6 @@ impl IsolationsStore {
         self.save()
     }
 
-    #[allow(dead_code)]
     /// Gets the isolated version for a given project path.
     pub fn get_isolation(&self, project_path: &Path) -> Option<&String> {
         let path_str = project_path

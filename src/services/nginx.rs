@@ -5,7 +5,8 @@ use std::process::{Command, Stdio};
 
 use crate::utils::archive::resolve_build_dir;
 use crate::utils::system::get_available_compiler;
-use crate::store::{SitesStore, Site};
+use crate::store::{SitesStore, Site, IsolationsStore};
+use crate::services::php::get_isolated_fpm_socket;
 
 /// Builds and installs Nginx from source.
 pub fn build_and_install_nginx(
@@ -168,7 +169,14 @@ pub fn create_site_config(
 
     let access_log = logs_dir.join(format!("{}.access.log", app_name));
     let error_log = logs_dir.join(format!("{}.error.log", app_name));
-    let socket_path = dar_dir.join("php").join("php-fpm.sock");
+
+    let socket_path = match IsolationsStore::load(dar_dir) {
+        Ok(store) => match store.get_isolation(app_path) {
+            Some(version) => get_isolated_fpm_socket(dar_dir, version),
+            None => dar_dir.join("php").join("php-fpm.sock"),
+        },
+        Err(_) => dar_dir.join("php").join("php-fpm.sock"),
+    };
 
     let nginx_config = if is_secured {
         let cert_file = certs_dir.join(format!("{}.test.pem", app_name));
