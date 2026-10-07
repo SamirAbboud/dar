@@ -7,4 +7,5 @@ pub mod unlink;
 pub mod unsecure;
 pub mod php;
 pub mod composer;
+pub mod laravel;
 pub mod services;

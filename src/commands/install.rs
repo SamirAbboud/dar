@@ -10,6 +10,7 @@ use crate::services::dependencies::{
     ensure_nginx_source, ensure_openssl_source, ensure_pcre2_source, ensure_zlib_source,
 };
 use crate::services::composer::ensure_composer;
+use crate::services::laravel::ensure_laravel;
 use crate::utils::paths::get_dar_dir;
 
 /// Initializes the ~/.dar directory structure, builds isolated dependencies 
@@ -49,6 +50,7 @@ pub fn run() -> Result<(), String> {
     let php_version = ensure_php_version(&dar_dir, &cfg.default_php)?;
     set_global_php_version(&dar_dir, &php_version)?;
     ensure_composer(&dar_dir)?;
+    ensure_laravel(&dar_dir)?;
     create_default_nginx_config(&dar_dir)?;
     restart_nginx(&dar_dir)?;
 

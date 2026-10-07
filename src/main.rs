@@ -110,6 +110,13 @@ enum Commands {
         args: Vec<String>,
     },
 
+    /// Execute Laravel Installer commands using the active isolated PHP runtime
+    Laravel {
+        /// Raw arguments passed directly to laravel installer (e.g. `dar laravel new my-app`)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
     /// Manage background infrastructure services
     Services {
         /// List available and running service containers
@@ -186,6 +193,7 @@ fn main() {
             }
         }
         Commands::Composer { args } => commands::composer::run(&args),
+        Commands::Laravel { args } => commands::laravel::run(&args),
         Commands::Services {
             list: _,
             add,
