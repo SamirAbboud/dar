@@ -1,6 +1,9 @@
 use std::fs::{self, File};
 use std::io;
 use std::path::Path;
+use std::process::Command;
+
+use colored::*;
 
 /// Downloads the latest stable `composer.phar` into `~/.dar/bin/` if missing 
 /// and generates an executable shell wrapper script pointing to the isolated PHP runtim
@@ -54,4 +57,24 @@ pub fn ensure_composer(dar_dir: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Updates Composer using its native `self-update` command.
+pub fn update_composer(dar_dir: &Path) -> Result<(), String> {
+    ensure_composer(dar_dir)?;
+    println!("{}", "🔄 Updating Composer...".cyan().bold());
+
+    let composer_wrapper = dar_dir.join("bin").join("composer");
+
+    let status = Command::new(&composer_wrapper)
+        .arg("self-update")
+        .status()
+        .map_err(|e| format!("Failed to run composer self-update: {}", e))?;
+
+    if status.success() {
+        println!("{}", "✨ Composer updated successfully!".green().bold());
+        Ok(())
+    } else {
+        Err("Failed to update Composer.".to_string())
+    }
 }

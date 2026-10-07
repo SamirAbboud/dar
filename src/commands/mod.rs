@@ -1,4 +1,5 @@
 pub mod install;
+pub mod update;
 pub mod park;
 pub mod link;
 pub mod secure;

@@ -3,6 +3,8 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use crate::services::composer::ensure_composer;
 
+use colored::*;
+
 /// Ensures `laravel/installer` is globally installed inside `~/.dar/composer/`
 /// and writes the wrapper executable at `~/.dar/bin/laravel`.
 pub fn ensure_laravel(dar_dir: &Path) -> Result<(), String> {
@@ -57,4 +59,29 @@ pub fn ensure_laravel(dar_dir: &Path) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+/// Updates `laravel/installer` inside `~/.dar/composer/` using isolated Composer.
+pub fn update_laravel(dar_dir: &Path) -> Result<(), String> {
+    ensure_laravel(dar_dir)?;
+    println!("{}", "🔄 Updating Laravel Installer...".cyan().bold());
+
+    let composer_wrapper = dar_dir.join("bin").join("composer");
+    let composer_home = dar_dir.join("composer");
+
+    let output = Command::new(&composer_wrapper)
+        .env("COMPOSER_HOME", &composer_home)
+        .args(["global", "require", "laravel/installer:*", "-W"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("Failed to execute composer update: {}", e))?;
+
+    if output.status.success() {
+        println!("{}", "✨ Laravel Installer updated successfully!".green().bold());
+        Ok(())
+    } else {
+        let err_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Failed to update Laravel Installer:\n{}", err_msg))
+    }
 }

@@ -25,6 +25,13 @@ enum Commands {
     /// Install Dar environment (nginx include, folders, PHP-FPM)
     Install,
 
+    /// Update managed global tools (Composer, Laravel Installer)
+    Update {
+        /// Specific tool to update (e.g. "composer", "laravel"). Updates all if omitted.
+        #[arg(value_name = "TOOL")]
+        tool: Option<String>,
+    },
+
     /// List all parked development directories
     Parked,
 
@@ -160,6 +167,7 @@ fn main() {
 
     let result = match cli.command {
         Commands::Install => commands::install::run(),
+        Commands::Update { tool } => commands::update::run(tool.as_deref()),
         Commands::Parked => commands::park::get_parked_folders(),
         Commands::Link { name, path, secure } => commands::link::run(name, path, secure),
         Commands::Secure { name, path } => commands::secure::run(name, path),

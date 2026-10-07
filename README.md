@@ -71,6 +71,25 @@ dar install
 - Pre-provisions `laravel/installer` inside `~/.dar/composer/` using the isolated Composer runtime.
 - Initializes system directories, default configuration files, and launches the background daemon.
 
+### `update`
+
+Updates managed global tools and binaries isolated within the `~/.dar` environment.
+
+```bash
+# Update all managed binaries (Composer, Laravel Installer)
+dar update
+
+# Target a specific tool
+dar update composer
+dar update laravel
+```
+
+**What it does:**
+- Checks and updates isolated global tools and binaries inside `~/.dar` without affecting your host system environment.
+- Running `dar update composer` triggers Composer's native self-update mechanism (`composer self-update`).
+- Running `dar update laravel` executes `composer global require laravel/installer:* -W` scoped to `~/.dar/composer/` using the isolated Composer runtime.
+- Running `dar update` with no arguments sequentially updates all managed tools (`composer`, `laravel`).
+
 ### `parked`
 
 Lists all registered parked development directories managed by `dar`.
