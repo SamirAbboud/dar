@@ -496,7 +496,7 @@ pub fn ensure_isolated_fpm_running(dar_dir: &Path, version: &str) -> Result<Path
 }
 
 /// Attempts to parse `php = ...` from a `.darrc` file in the target directory.
-fn parse_darrc(dir: &Path) -> Result<Option<String>, String> {
+pub fn parse_darrc(dir: &Path) -> Result<Option<String>, String> {
     let darrc_path = dir.join(".darrc");
     if !darrc_path.exists() {
         return Ok(None);

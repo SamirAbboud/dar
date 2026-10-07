@@ -1,8 +1,9 @@
 use crate::services::nginx::{create_site_config, ensure_hosts_entry, restart as restart_nginx};
+use crate::services::php::{ensure_isolated_fpm_running, normalize_php_version, parse_darrc};
 use crate::commands::park::park_folder;
 use crate::services::ssl::generate_certificate;
 use crate::utils::paths::{resolve_app_name, resolve_target_path, get_dar_dir};
-use crate::store::{SitesStore, Site};
+use crate::store::{SitesStore, Site, IsolationsStore};
 use colored::*;
 
 /// Links a directory to a local `.test` domain.
@@ -55,17 +56,35 @@ pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(
         generate_certificate(&dar_dir, &app_name, &mkcert_bin)?;
     }
 
-    // 2. Generate/overwrite Nginx virtual host configuration
+    // 2. Auto-isolate if a local `.darrc` exists and site is not isolated yet
+    let isolations_store = IsolationsStore::load(&dar_dir)?;
+    if isolations_store.get_isolation(&target_path).is_none() {
+        if let Ok(Some(raw_version)) = parse_darrc(&target_path) {
+            let version = normalize_php_version(&raw_version);
+            println!(
+                "{}",
+                format!("🐘 Found .darrc - auto-isolating site to PHP {}...", version).cyan()
+            );
+
+            // Provision binary/FPM daemon if needed and persist in IsolationsStore
+            if ensure_isolated_fpm_running(&dar_dir, &version).is_ok() {
+                let mut store = isolations_store;
+                let _ = store.set_isolation(&target_path, &version);
+            }
+        }
+    }
+
+    // 3. Generate/overwrite Nginx virtual host configuration
     create_site_config(&dar_dir, &app_name, &target_path, secure)?;
 
-    // 3. Save / Update site entry in store
+    // 4. Save / Update site entry in store
     let site_record = Site::new(&app_name, target_path.clone(), secure);
     store.add(site_record)?;
 
-    // 4. Ensure local DNS entry exists
+    // 5. Ensure local DNS entry exists
     ensure_hosts_entry(&app_name)?;
 
-    // 5. Auto-park parent folder if not already parked
+    // 6. Auto-park parent folder if not already parked
     if let Some(parent_dir) = target_path.parent() {
         if let Ok(was_added) = park_folder(&dar_dir, parent_dir) {
             if was_added {
@@ -77,7 +96,7 @@ pub fn run(name: Option<String>, path: Option<String>, secure: bool) -> Result<(
         }
     }
 
-    // 6. Reload Nginx
+    // 7. Reload Nginx
     restart_nginx(&dar_dir)?;
 
     let protocol = if secure { "https" } else { "http" };
