@@ -462,3 +462,51 @@ pub fn remove(name: &str) -> Result<(), String> {
     println!("✨ Service '{}' and its data removed successfully!", container_name);
     Ok(())
 }
+
+/// Stops all active Dar-managed Docker containers (containers starting with `dar--`).
+pub fn stop_all() -> Result<(), String> {
+    verify_docker()?;
+
+    // Query all running or stopped dar--* container names
+    let output = Command::new("docker")
+        .args([
+            "ps",
+            "-a",
+            "--filter",
+            "name=dar--",
+            "--format",
+            "{{.Names}}",
+        ])
+        .output()
+        .map_err(|e| format!("Failed to list Docker containers: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to query Docker containers: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let containers: Vec<&str> = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    if containers.is_empty() {
+        println!("ℹ️  No active Dar Docker containers found.");
+        return Ok(());
+    }
+
+    println!("🛑 Stopping all Dar-managed Docker containers...");
+
+    for container in containers {
+        if let Some(service_name) = container.strip_prefix("dar--") {
+            let _ = stop(service_name);
+        }
+    }
+
+    Ok(())
+}
+

@@ -90,6 +90,38 @@ dar update laravel
 - Running `dar update laravel` executes `composer global require laravel/installer:* -W` scoped to `~/.dar/composer/` using the isolated Composer runtime.
 - Running `dar update` with no arguments sequentially updates all managed tools (`composer`, `laravel`).
 
+### `clear`
+
+Safely cleans temporary caches, logs, socket files, or secondary runtimes within `~/.dar` without destroying persistent configuration or active projects.
+
+```bash
+# Clear log files and caches
+dar clear --logs --cache
+
+# Clean up unused secondary PHP runtimes and stale sockets
+dar clear -r
+
+# Perform a full state reset (stops services, clears logs, caches, and runtimes)
+dar clear --all
+```
+
+**What it does:**
+- Protects core persistent state and configuration files (`sites.json`, `isolations.json`, `parked.txt`, `certs/`, `services/`, and `sites/`).
+- Running `dar clear -l` or `--logs` clears Nginx and PHP-FPM log files in `~/.dar/logs/`.
+- Running `dar clear -c` or `--cache` removes temporary Nginx caches, FastCGI cache directories, and session data.
+- Running `dar clear -r` or `--runtimes` cleans unused secondary/isolated PHP versions and stale FPM socket files while strictly preserving your active default PHP version, the `current` symlink, and global binaries in `~/.dar/bin/`.
+- Running `dar clear -a` or `--all` orchestrates a full clean slate: it gracefully shuts down running services (`nginx`, `php-fpm`, and `dar--*` Docker containers), cleans logs/caches, and resets temporary runtimes.
+
+
+| Flag / Argument | Short | Description |
+| :--- | :--- | :--- |
+| *(none)* | *(none)* | Clear active temporary files across logs and caches |
+| `--logs` | `-l` | Clear all Nginx, PHP-FPM, and service log files in `~/.dar/logs/` |
+| `--cache` | `-c` | Purge temporary Nginx web caches, FastCGI cache directories, and sessions |
+| `--runtimes` | `-r` | Remove unused secondary/isolated PHP versions and stale FPM sockets while preserving default PHP, `current` symlink, and global binaries in `~/.dar/bin/` |
+| `--all` | `-a` | Perform a full state reset: stop running services, clear logs (`-l`), purge caches (`-c`), and remove secondary runtimes (`-r`) |
+
+
 ### `parked`
 
 Lists all registered parked development directories managed by `dar`.

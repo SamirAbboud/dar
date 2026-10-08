@@ -153,4 +153,28 @@ pub enum Commands {
         #[arg(value_enum)]
         shell: Shell,
     },
+
+    /// Clear caches, temporary logs, or wipe the ~/.dar environment
+    #[command(alias = "clean")]
+    Clear {
+        /// Clean temporary logs (~/.dar/logs/*.log, Nginx buffer folders)
+        #[arg(short, long)]
+        logs: bool,
+
+        /// Clean downloaded build source tarballs (~/.dar/src) and Composer cache
+        #[arg(short, long)]
+        cache: bool,
+
+        /// Wipe installed PHP versions (~/.dar/php/versions) and managed binaries (~/.dar/bin)
+        #[arg(short, long)]
+        runtimes: bool,
+
+        /// Nuclear option: Wipe the entire ~/.dar directory
+        #[arg(short, long)]
+        all: bool,
+
+        /// Skip interactive confirmation prompts
+        #[arg(short, long)]
+        force: bool,
+    },
 }

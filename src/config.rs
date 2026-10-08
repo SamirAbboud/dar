@@ -20,7 +20,7 @@ impl Default for VersionsConfig {
             pcre2: "10.44".to_string(),
             openssl: "3.0.15".to_string(),
             zlib: "1.3.1".to_string(),
-            default_php: "8.3.11".to_string(),
+            default_php: "8.3.32".to_string(),
             mkcert: "1.4.4".to_string(),
         }
     }

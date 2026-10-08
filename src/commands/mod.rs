@@ -10,3 +10,4 @@ pub mod php;
 pub mod composer;
 pub mod laravel;
 pub mod services;
+pub mod clear;

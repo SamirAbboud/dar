@@ -84,6 +84,13 @@ fn main() {
             generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
             Ok(())
         }
+        Commands::Clear {
+            logs,
+            cache,
+            runtimes,
+            all,
+            force,
+        } => commands::clear::run(logs, cache, runtimes, all, force),
     };
 
     if let Err(err_msg) = result {
