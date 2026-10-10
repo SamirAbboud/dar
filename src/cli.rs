@@ -177,4 +177,32 @@ pub enum Commands {
         #[arg(short, long)]
         force: bool,
     },
+
+    /// Tail and manage logs for Nginx, PHP-FPM, sites, and Docker containers
+    #[command(alias = "logs")]
+    Log {
+        /// Tail Nginx access and error logs (~/.dar/logs/nginx/)
+        #[arg(short, long)]
+        nginx: bool,
+
+        /// Tail primary PHP log or a specific isolated version (e.g. --php or --php 8.3)
+        #[arg(short, long, value_name = "VERSION", num_args = 0..=1, default_missing_value = "current")]
+        php: Option<String>,
+
+        /// Tail access and error logs for a specific site (e.g. --site my-app)
+        #[arg(short, long, value_name = "SITE")]
+        site: Option<String>,
+
+        /// Tail container output for a Docker service (e.g. --docker sqlstudio)
+        #[arg(short, long, value_name = "SERVICE")]
+        docker: Option<String>,
+
+        /// Number of lines to output from the end of the log file
+        #[arg(short, long, default_value = "20")]
+        lines: usize,
+
+        /// Continuously follow live log output
+        #[arg(short, long)]
+        follow: bool,
+    },
 }

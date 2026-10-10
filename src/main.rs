@@ -91,6 +91,14 @@ fn main() {
             all,
             force,
         } => commands::clear::run(logs, cache, runtimes, all, force),
+        Commands::Log {
+            nginx,
+            php,
+            site,
+            docker,
+            lines,
+            follow,
+        } => commands::log::run(nginx, php, site, docker, lines, follow),
     };
 
     if let Err(err_msg) = result {

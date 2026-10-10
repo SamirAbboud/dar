@@ -322,6 +322,45 @@ Lists all active local development sites currently linked with `dar`.
 dar sites
 ```
 
+### `log`
+
+Consolidates and tails log streams across Nginx, PHP-FPM, sites, and Docker service containers.
+
+```bash
+# Tail default logs (Nginx error.log and PHP-FPM log concurrently)
+dar log
+
+# Tail Nginx logs (error.log and access.log)
+dar log --nginx
+
+# Tail global PHP-FPM log or a specific PHP version log
+dar log --php
+dar log --php 8.3
+
+# Tail site-specific Nginx logs (<app_name>.error.log and <app_name>.access.log)
+dar log --site my-app
+
+# Tail a background Docker service container log (e.g. dar--mysql)
+dar log --docker mysql
+
+# Output a custom number of lines (default: 20)
+dar log --nginx -l 10
+
+# Stream/follow live log updates in real-time
+dar log --site myapp -f
+```
+
+| Flag | Short | Description |
+| :--- | :--- | :--- |
+| *(none)* | | Tail default logs (Nginx `error.log` and PHP-FPM log concurrently) |
+| `--nginx` | | Tail Nginx access and error logs directly under `~/.dar/logs/` |
+| `--php [VERSION]` | | Tail global `php-fpm.log` or specific PHP version log (e.g., `8.3`) |
+| `--site <APP_NAME>` | | Tail site-specific logs (`<app_name>.access.log` and `<app_name>.error.log`) |
+| `--docker <SERVICE>` | | Stream logs from a running Docker service container (`dar--<service>`) |
+| `--lines <N>` | `-l` | Number of lines to output from the end of the log file (default: `50`) |
+| `--follow` | `-f` | Continuously stream live log updates in real-time |
+
+
 ### `services`
 
 Manages background infrastructure service containers on the `dar-net` Docker network.

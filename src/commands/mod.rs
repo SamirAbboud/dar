@@ -11,3 +11,4 @@ pub mod composer;
 pub mod laravel;
 pub mod services;
 pub mod clear;
+pub mod log;
