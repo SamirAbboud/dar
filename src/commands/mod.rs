@@ -12,3 +12,4 @@ pub mod laravel;
 pub mod services;
 pub mod clear;
 pub mod log;
+pub mod status;

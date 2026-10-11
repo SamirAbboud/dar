@@ -76,3 +76,15 @@ pub fn get_available_compiler() -> String {
 
     "clang".to_string()
 }
+
+/// Checks if a process is running on the host system using `pgrep`.
+pub fn is_process_running(process_name: &str) -> bool {
+    Command::new("pgrep")
+        .arg("-x")
+        .arg(process_name)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}

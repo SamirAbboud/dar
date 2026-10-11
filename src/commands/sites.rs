@@ -3,7 +3,6 @@ use crate::utils::table::create_table;
 use crate::utils::paths::get_dar_dir;
 use colored::*;
 use comfy_table::{Attribute, Cell, Color as TableColor};
-use std::path::Path;
 
 /// Lists all currently linked local development sites.
 pub fn run() -> Result<(), String> {
@@ -34,7 +33,7 @@ pub fn run() -> Result<(), String> {
             Cell::new("NO").fg(TableColor::Yellow)
         };
 
-        let php_badge = match get_site_php_version(&site.path, isolations_store.as_ref()) {
+        let php_badge = match isolations_store.as_ref().and_then(|store| store.get_isolation(&site.path)) {
             Some(version) => Cell::new(format!("PHP {}", version))
                 .fg(TableColor::Cyan)
                 .add_attribute(Attribute::Bold),
@@ -56,18 +55,3 @@ pub fn run() -> Result<(), String> {
     Ok(())
 }
 
-/// Helper function to match a project path against stored isolations
-fn get_site_php_version(
-    site_path: &Path,
-    isolations_store: Option<&IsolationsStore>,
-) -> Option<String> {
-    let store = isolations_store?;
-
-    let canonical_path = site_path
-        .canonicalize()
-        .unwrap_or_else(|_| site_path.to_path_buf())
-        .display()
-        .to_string();
-
-    store.mappings.get(&canonical_path).cloned()
-}

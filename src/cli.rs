@@ -205,4 +205,7 @@ pub enum Commands {
         #[arg(short, long)]
         follow: bool,
     },
+
+    /// Display unified environment status dashboard
+    Status,
 }

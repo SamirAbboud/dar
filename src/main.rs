@@ -99,6 +99,7 @@ fn main() {
             lines,
             follow,
         } => commands::log::run(nginx, php, site, docker, lines, follow),
+        Commands::Status => commands::status::run(),
     };
 
     if let Err(err_msg) = result {

@@ -314,6 +314,14 @@ dar laravel new my-app --git --pest
 | `<args>` |Raw arguments passed directly to Laravel Installer (e.g. `new my-app`) |
 
 
+### `status`
+
+Displays a unified, real-time dashboard showing local DNS resolver status, core system daemons, provisioned PHP runtimes, linked sites with runtime health checks, and active Docker service containers.
+
+```bash
+dar status
+```
+
 ### `sites`
 
 Lists all active local development sites currently linked with `dar`.
