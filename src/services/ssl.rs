@@ -74,6 +74,11 @@ pub fn generate_certificate(dar_dir: &Path, app_name: &str, mkcert_bin: &Path) -
 
     let cert_file = certs_dir.join(format!("{}.test.pem", app_name));
     let key_file = certs_dir.join(format!("{}.test-key.pem", app_name));
+
+    if cert_file.exists() && key_file.exists() {
+        return Ok(());
+    }
+
     let domain = format!("{}.test", app_name);
 
     let status = Command::new(mkcert_bin)

@@ -108,8 +108,8 @@ pub fn build_and_install_nginx(
 pub fn create_default_nginx_config(dar_dir: &Path) -> Result<(), String> {
     let conf_dir = dar_dir.join("nginx").join("conf");
     let conf_file = conf_dir.join("nginx.conf");
-
     let sites_path = dar_dir.join("sites").join("*.conf");
+
     let nginx_conf_content = format!(
         r#"worker_processes 1;
 pid {};
@@ -119,19 +119,45 @@ events {{
 }}
 
 http {{
-    include       mime.types;
-    default_type  application/octet-stream;
+    include        mime.types;
+    default_type   application/octet-stream;
 
     sendfile        on;
     keepalive_timeout  65;
 
+    # Fallback server block for unlinked HTTP sites
     server {{
         listen 80 default_server;
-        server_name localhost;
+        listen [::]:80 default_server;
+        server_name _;
 
         location / {{
-            return 200 'Dar environment is active!';
-            add_header Content-Type text/plain;
+            default_type text/html;
+            return 404 '<!DOCTYPE html>
+<html>
+<head>
+    <title>Site Not Linked - Dar</title>
+    <style>
+        body {{ font-family: system-ui, -apple-system, sans-serif; background: #1a1b26; color: #c0caf5; display: flex; justify-content: center; height: 100vh; margin: 0; }}
+        .card {{ background: #24283b; padding: 2.5rem; border-radius: 12px; border: 1px solid #414868; max-width: 480px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.4); margin-top: 15vh; height: fit-content; }}
+        h1 {{ color: #f7768e; margin-top: 0; font-size: 1.5rem; }}
+        p {{ color: #9aa5ce; line-height: 1.5; font-size: 0.95rem; }}
+        code {{ background: #292e42; color: #7aa2f7; padding: 0.2rem 0.5rem; border-radius: 4px; font-family: monospace; font-size: 0.9rem; }}
+        .cmd {{ background: #1d202f; padding: 0.75rem; border-radius: 6px; border: 1px solid #414868; display: block; margin: 1.5rem 0; text-align: left; }}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Site Not Linked</h1>
+        <p>Local DNS is working, but this <code>.test</code> domain has not been registered in <strong>dar</strong> yet.</p>
+        <div class="cmd">
+            <code>&#36; cd /path/to/project</code><br>
+            <code>&#36; dar link</code>
+        </div>
+        <p style="font-size: 0.85rem; color: #6c7086;">Run <code>dar status</code> or <code>dar sites</code> to view active linked applications.</p>
+    </div>
+</body>
+</html>';
         }}
     }}
 
