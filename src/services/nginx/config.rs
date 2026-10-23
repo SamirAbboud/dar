@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use crate::services::nginx::lifecycle::restart;
+use crate::services::nginx::restart;
 use crate::services::php::get_isolated_fpm_socket;
 use crate::store::{IsolationsStore, Site, SitesStore};
 
