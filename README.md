@@ -30,7 +30,7 @@ Before installing `dar`, ensure you have the following installed and running:
 You can install `dar` directly using Cargo:
 
 ```bash
-cargo install --git [https://github.com/SamirAbboud/dar.git](https://github.com/SamirAbboud/dar.git) --force --locked
+cargo install --git https://github.com/SamirAbboud/dar.git --force --locked
 ```
 
 >*Ensure `~/.cargo/bin` is in your system's `$PATH` so the `dar` executable can be accessed from anywhere.*
